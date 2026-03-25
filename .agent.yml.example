@@ -1,0 +1,25 @@
+# Code Agent Configuration
+
+# Model settings
+model: claude-sonnet-4
+mode: yolo
+
+# API key (can also use ANTHROPIC_API_KEY env var)
+# apiKey: your_key_here
+
+# Tool configurations
+tools:
+  bash:
+    timeout: 30000
+  rm:
+    confirm: true
+
+# Session management
+session:
+  autoSave: true
+  saveDir: .agent/sessions
+
+# Logging
+logging:
+  level: info
+  file: .agent/logs/agent.log

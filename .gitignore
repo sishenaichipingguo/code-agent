@@ -1,0 +1,26 @@
+node_modules/
+bun.lockb
+dist/
+.env
+.env.local
+.env.*.local
+.agent/logs/
+.agent/sessions/
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+*.temp
+coverage/
+
+# Documentation (keep locally, exclude from git)
+COMPARISON_*.md
+IMPLEMENTATION*.md
+PRODUCTION_*.md
+CONTRIBUTING.md
+QUICKSTART.md
+UI_FEATURES.md
