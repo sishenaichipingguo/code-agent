@@ -114,6 +114,10 @@ export function createToolRegistry(): ToolRegistry {
   const { CpTool } = require('./cp')
   const { MvTool } = require('./mv')
   const { RmTool } = require('./rm')
+  const { TaskCreateTool, TaskUpdateTool, TaskListTool, TaskGetTool } = require('./task')
+  const { MemorySaveTool, MemoryLoadTool } = require('./memory')
+  const { EnterPlanModeTool, ExitPlanModeTool } = require('./plan')
+  const { AgentTool } = require('./agent')
 
   registry.register(new BashTool())
   registry.register(new ReadTool())
@@ -125,6 +129,15 @@ export function createToolRegistry(): ToolRegistry {
   registry.register(new CpTool())
   registry.register(new MvTool())
   registry.register(new RmTool())
+  registry.register(new TaskCreateTool())
+  registry.register(new TaskUpdateTool())
+  registry.register(new TaskListTool())
+  registry.register(new TaskGetTool())
+  registry.register(new MemorySaveTool())
+  registry.register(new MemoryLoadTool())
+  registry.register(new EnterPlanModeTool())
+  registry.register(new ExitPlanModeTool())
+  registry.register(new AgentTool())
 
   return registry
 }
