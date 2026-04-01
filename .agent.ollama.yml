@@ -1,0 +1,15 @@
+# Ollama Local Model Configuration
+
+provider: ollama
+baseUrl: http://localhost:11434
+model: qwen2.5:3b
+
+mode: yolo
+
+session:
+  autoSave: true
+  saveDir: .agent/sessions
+
+logging:
+  level: info
+  file: .agent/logs/agent.log
