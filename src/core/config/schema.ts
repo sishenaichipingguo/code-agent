@@ -3,7 +3,11 @@ import { z } from 'zod'
 export const ConfigSchema = z.object({
   model: z.string().default('claude-sonnet-4'),
   mode: z.enum(['yolo', 'safe']).default('yolo'),
+
+  // Provider configuration
+  provider: z.enum(['anthropic', 'ollama', 'openai', 'openai-compatible']).default('anthropic'),
   apiKey: z.string().optional(),
+  baseUrl: z.string().optional(),
 
   tools: z.object({
     bash: z.object({

@@ -10,6 +10,7 @@ interface ReadInput {
 export class ReadTool implements Tool {
   name = 'read'
   description = 'Read file contents with line numbers'
+  readonly = true
   inputSchema = {
     type: 'object',
     properties: {

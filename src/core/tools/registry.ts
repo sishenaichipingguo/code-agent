@@ -3,6 +3,7 @@ export interface Tool {
   name: string
   description: string
   inputSchema: any
+  readonly?: boolean  // true = no side effects, safe to run in parallel
   execute(input: any): Promise<any>
 }
 
@@ -82,6 +83,15 @@ export class ToolRegistry {
     }))
   }
 
+  createRestricted(allowedTools: string[]): ToolRegistry {
+    const restricted = new ToolRegistry()
+    for (const name of allowedTools) {
+      const tool = this.tools.get(name)
+      if (tool) restricted.register(tool)
+    }
+    return restricted
+  }
+
   private requiresConfirmation(name: string): boolean {
     return ['write', 'edit', 'bash', 'rm', 'mv'].includes(name)
   }
@@ -89,35 +99,35 @@ export class ToolRegistry {
   private async askPermission(name: string, input: any): Promise<boolean> {
     console.log(`\nPermission required: ${name}`)
     console.log('Input:', JSON.stringify(input, null, 2))
-    console.log('Allow? (y/n)')
-
-    const decoder = new TextDecoder()
-    const buffer = new Uint8Array(10)
-    const n = await Bun.stdin.read(buffer)
-    const answer = decoder.decode(buffer.slice(0, n)).trim().toLowerCase()
-
-    return answer === 'y' || answer === 'yes'
+    const readline = await import('readline')
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
+    return new Promise(resolve => {
+      rl.question('Allow? (y/n) ', answer => {
+        rl.close()
+        resolve(answer.trim().toLowerCase() === 'y' || answer.trim().toLowerCase() === 'yes')
+      })
+    })
   }
 }
 
-export function createToolRegistry(): ToolRegistry {
+export async function createToolRegistry(): Promise<ToolRegistry> {
   const registry = new ToolRegistry()
 
   // Register built-in tools
-  const { BashTool } = require('./bash')
-  const { ReadTool } = require('./read')
-  const { WriteTool } = require('./write')
-  const { EditTool } = require('./edit')
-  const { GlobTool } = require('./glob')
-  const { GrepTool } = require('./grep')
-  const { LsTool } = require('./ls')
-  const { CpTool } = require('./cp')
-  const { MvTool } = require('./mv')
-  const { RmTool } = require('./rm')
-  const { TaskCreateTool, TaskUpdateTool, TaskListTool, TaskGetTool } = require('./task')
-  const { MemorySaveTool, MemoryLoadTool } = require('./memory')
-  const { EnterPlanModeTool, ExitPlanModeTool } = require('./plan')
-  const { AgentTool } = require('./agent')
+  const { BashTool } = await import('./bash')
+  const { ReadTool } = await import('./read')
+  const { WriteTool } = await import('./write')
+  const { EditTool } = await import('./edit')
+  const { GlobTool } = await import('./glob')
+  const { GrepTool } = await import('./grep')
+  const { LsTool } = await import('./ls')
+  const { CpTool } = await import('./cp')
+  const { MvTool } = await import('./mv')
+  const { RmTool } = await import('./rm')
+  const { TaskCreateTool, TaskUpdateTool, TaskListTool, TaskGetTool } = await import('./task')
+  const { MemorySaveTool, MemoryLoadTool } = await import('./memory')
+  const { EnterPlanModeTool, ExitPlanModeTool } = await import('./plan')
+  const { AgentTool, SendMessageTool } = await import('./agent')
 
   registry.register(new BashTool())
   registry.register(new ReadTool())
@@ -138,6 +148,7 @@ export function createToolRegistry(): ToolRegistry {
   registry.register(new EnterPlanModeTool())
   registry.register(new ExitPlanModeTool())
   registry.register(new AgentTool())
+  registry.register(new SendMessageTool())
 
   return registry
 }

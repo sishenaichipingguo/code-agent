@@ -4,6 +4,7 @@ import { glob } from 'glob'
 export class GlobTool implements Tool {
   name = 'glob'
   description = 'Find files matching a pattern'
+  readonly = true
   inputSchema = {
     type: 'object',
     properties: {

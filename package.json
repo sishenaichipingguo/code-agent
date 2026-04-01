@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "bun run src/cli/index.ts",
+    "dev:node": "tsx src/cli/index.ts",
     "build": "bun build src/cli/index.ts --outdir=dist --target=bun",
     "build:binary": "bun build src/cli/index.ts --compile --outfile=dist/agent",
     "test": "bun test",
@@ -26,6 +27,7 @@
   "devDependencies": {
     "@types/bun": "latest",
     "@types/react": "^18.3.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.0"
   }
 }

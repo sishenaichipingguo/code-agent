@@ -37,9 +37,12 @@ bun run dev --mode safe "Create a hello.txt file"
 
 ## Configuration
 
+### Using Anthropic Claude (Default)
+
 Create `.agent.yml` in your project:
 
 ```yaml
+provider: anthropic
 model: claude-sonnet-4
 mode: yolo
 
@@ -57,6 +60,31 @@ logging:
   level: info
   file: .agent/logs/agent.log
 ```
+
+### Using Local Ollama
+
+```yaml
+provider: ollama
+baseUrl: http://localhost:11434
+model: qwen2.5-coder:7b
+mode: yolo
+```
+
+**Setup Ollama:**
+```bash
+# Start Ollama
+ollama serve
+
+# Pull a model
+ollama pull qwen2.5-coder:7b
+
+# Test
+ollama run qwen2.5-coder:7b
+```
+
+**Note:** Ollama models don't support tool calling, so the agent will work in chat-only mode.
+
+See [MULTI_MODEL_GUIDE.md](./MULTI_MODEL_GUIDE.md) for more provider options.
 
 See `.agent.yml.example` for full configuration options.
 

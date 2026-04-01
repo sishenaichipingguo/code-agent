@@ -1,13 +1,14 @@
-# Code Agent Configuration
+# Agent Configuration Example
 
-# Model settings
+# Provider: anthropic, ollama, openai, openai-compatible
+provider: anthropic
 model: claude-sonnet-4
-mode: yolo
+# apiKey: sk-ant-xxx  # Optional, uses ANTHROPIC_API_KEY env var
 
-# API key (can also use ANTHROPIC_API_KEY env var)
-# apiKey: your_key_here
+# Execution mode
+mode: yolo  # or 'safe'
 
-# Tool configurations
+# Tool settings
 tools:
   bash:
     timeout: 30000

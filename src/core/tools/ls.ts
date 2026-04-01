@@ -5,6 +5,7 @@ import { join } from 'path'
 export class LsTool implements Tool {
   name = 'ls'
   description = 'List files and directories'
+  readonly = true
   inputSchema = {
     type: 'object',
     properties: {

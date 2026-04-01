@@ -3,8 +3,11 @@ export interface Args {
   message?: string
   mode?: 'yolo' | 'safe'
   model?: string
+  config?: string
   verbose?: boolean
   ui?: boolean
+  resume?: boolean    // load last session and continue
+  session?: string    // load specific session id and continue
 }
 
 export function parseArgs(argv: string[]): Args {
@@ -17,6 +20,12 @@ export function parseArgs(argv: string[]): Args {
       args.mode = argv[++i] as 'yolo' | 'safe'
     } else if (arg === '--model' && argv[i + 1]) {
       args.model = argv[++i]
+    } else if (arg === '--config' && argv[i + 1]) {
+      args.config = argv[++i]
+    } else if (arg === '--session' && argv[i + 1]) {
+      args.session = argv[++i]
+    } else if (arg === '--resume' || arg === '-r') {
+      args.resume = true
     } else if (arg === '--verbose' || arg === '-v') {
       args.verbose = true
     } else if (arg === '--ui') {

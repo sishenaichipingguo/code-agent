@@ -4,6 +4,7 @@ import { spawn } from 'child_process'
 export class GrepTool implements Tool {
   name = 'grep'
   description = 'Search for text in files'
+  readonly = true
   inputSchema = {
     type: 'object',
     properties: {

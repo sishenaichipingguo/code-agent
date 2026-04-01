@@ -32,7 +32,7 @@ export class EnterPlanModeTool implements Tool {
 export class ExitPlanModeTool implements Tool {
   name = 'exit_plan_mode'
   description = 'Exit plan mode and get approval'
-  inputSchema = { type: 'object', properties:  }
+  inputSchema = { type: 'object', properties: {} }
 
   async execute(): Promise<string> {
     const result = getPlanManager().exit()

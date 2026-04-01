@@ -6,6 +6,8 @@ import { join } from 'path'
 import { ConfigSchema, DEFAULT_CONFIG, type Config } from './schema'
 
 export class ConfigLoader {
+  constructor(private customConfigPath?: string) {}
+
   async load(): Promise<Config> {
     const configs = []
 
@@ -18,8 +20,8 @@ export class ConfigLoader {
     )
     if (globalConfig) configs.push(globalConfig)
 
-    // 3. Project config (.agent.yml)
-    const projectConfig = await this.loadYaml('.agent.yml')
+    // 3. Project config (.agent.yml or custom path)
+    const projectConfig = await this.loadYaml(this.customConfigPath || '.agent.yml')
     if (projectConfig) configs.push(projectConfig)
 
     // 4. Environment variables
@@ -72,9 +74,9 @@ export class ConfigLoader {
 
 let globalConfig: Config | null = null
 
-export async function loadConfig(): Promise<Config> {
+export async function loadConfig(configPath?: string): Promise<Config> {
   if (!globalConfig) {
-    const loader = new ConfigLoader()
+    const loader = new ConfigLoader(configPath)
     globalConfig = await loader.load()
   }
   return globalConfig

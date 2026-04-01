@@ -1,53 +1,62 @@
-// SubAgent运行时入口
+// SubAgent runtime entry point — runs a real AgentLoop in an isolated process
 import { createToolRegistry } from '../tools/registry'
+import { ModelFactory } from '../models/factory'
+import { AgentLoop } from './loop'
+import { initLogger } from '@/infra/logger'
+import { initTokenTracker } from '@/infra/token-tracker'
+import { initMetrics } from '@/infra/metrics'
 
 async function main() {
+  const type = process.env.SUBAGENT_TYPE!
+  const promptBase64 = process.env.SUBAGENT_PROMPT!
+  const prompt = Buffer.from(promptBase64, 'base64').toString('utf-8')
+  const allowedTools: string[] = JSON.parse(process.env.SUBAGENT_TOOLS!)
+  const systemPrompt = process.env.SUBAGENT_SYSTEM ?? ''
+  const provider = (process.env.SUBAGENT_PROVIDER ?? 'anthropic') as any
+  const model = process.env.SUBAGENT_MODEL ?? 'claude-sonnet-4'
+  const apiKey = process.env.SUBAGENT_API_KEY ?? process.env.ANTHROPIC_API_KEY ?? ''
+  const baseUrl = process.env.SUBAGENT_BASE_URL
+  const maxTokens = parseInt(process.env.SUBAGENT_MAX_TOKENS ?? '4096', 10)
+
+  // All diagnostic output goes to stderr so stdout stays clean for the JSON result
+  const logger = initLogger({ level: 'info', file: `.agent/logs/subagent-${type}.log` })
+  initTokenTracker()
+  initMetrics()
+
   try {
-    const type = process.env.SUBAGENT_TYPE!
-    const promptBase64 = process.env.SUBAGENT_PROMPT!
-    const prompt = Buffer.from(promptBase64, 'base64').toString('utf-8')
-    const allowedTools = JSON.parse(process.env.SUBAGENT_TOOLS!)
-    const systemPrompt = process.env.SUBAGENT_SYSTEM!
+    logger.info('SubAgent starting', { type, provider, model })
 
-    // 创建受限工具注册表
-    const fullRegistry = createToolRegistry()
-    const restrictedRegistry = createRestrictedRegistry(fullRegistry, allowedTools)
+    const modelAdapter = ModelFactory.create({ type: provider, apiKey, baseUrl, model })
 
-    // 执行任务（简化版，实际需要调用completion engine）
-    const result = await executeSubAgentTask(restrictedRegistry, systemPrompt, prompt)
+    const fullRegistry = await createToolRegistry()
+    const restrictedRegistry = fullRegistry.createRestricted(allowedTools)
 
-    // 输出结果
-    console.log(JSON.stringify({
+    const loop = new AgentLoop({
+      model: modelAdapter,
+      tools: restrictedRegistry,
+      mode: 'yolo',
+      logger,
+      streaming: false
+    })
+
+    const result = await loop.run(prompt)
+
+    // Only the final JSON goes to stdout
+    process.stdout.write(JSON.stringify({
       success: true,
       result,
-      metadata: {
-        toolsUsed: [],
-        filesAccessed: [],
-        tokensUsed: 0
-      }
-    }))
+      metadata: { type, model, toolsUsed: allowedTools }
+    }) + '\n')
+
+    process.exit(0)
   } catch (error: any) {
-    console.log(JSON.stringify({
+    logger.error('SubAgent failed', { error: error.message })
+    process.stdout.write(JSON.stringify({
       success: false,
       error: error.message
-    }))
+    }) + '\n')
     process.exit(1)
   }
 }
 
-function createRestrictedRegistry(fullRegistry: any, allowedTools: string[]): any {
-  const restricted = { tools: new Map() }
-  allowedTools.forEach(name => {
-    const tool = fullRegistry.get(name)
-    if (tool) restricted.tools.set(name, tool)
-  })
-  return restricted
-}
-
-async function executeSubAgentTask(registry: any, systemPrompt: string, prompt: string): Promise<string> {
-  // 简化实现：返回提示信息
-  return `SubAgent executed with prompt: ${prompt.slice(0, 100)}...`
-}
-
 main()
-

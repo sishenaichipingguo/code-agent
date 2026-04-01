@@ -98,7 +98,8 @@ export class SessionManager {
 
     await this.ensureDir(this.sessionsDir)
     const path = `${this.sessionsDir}/${this.currentSession.id}.json`
-    await Bun.write(path, JSON.stringify(this.currentSession, null, 2))
+    const fs = await import('fs/promises')
+    await fs.writeFile(path, JSON.stringify(this.currentSession, null, 2))
   }
 
   private generateId(): string {
@@ -106,6 +107,7 @@ export class SessionManager {
   }
 
   private async ensureDir(dir: string) {
-    await Bun.spawn(['mkdir', '-p', dir]).exited
+    const fs = await import('fs/promises')
+    await fs.mkdir(dir, { recursive: true })
   }
 }
