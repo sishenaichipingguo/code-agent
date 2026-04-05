@@ -12,6 +12,7 @@ import { initAgentDispatcher } from '@/core/tools/agent'
 import { ContextManager } from '@/core/context/manager'
 import { SystemPromptBuilder } from '@/core/system-prompt/builder'
 import { initMemoryManager, getMemoryManager } from '@/core/tools/memory'
+import { buildPermissionContext } from '@/core/permissions'
 
 export async function runYolo(args: Args) {
   const config = await loadConfig(args.config)
@@ -91,7 +92,7 @@ export async function runYolo(args: Args) {
   const loop = new AgentLoop({
     model,
     tools,
-    mode: 'yolo',
+    permissionContext: buildPermissionContext('bypass'),
     logger,
     streaming: true,
     contextManager,

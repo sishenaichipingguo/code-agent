@@ -26,6 +26,12 @@ export class TaskCreateTool implements Tool {
     required: ['subject', 'description']
   }
 
+  isConcurrencySafe = () => false
+  isReadOnly = () => false
+  isDestructive = () => false
+  checkPermissions = () => ({ type: 'allow' as const })
+  preparePermissionMatcher = () => null
+
   async execute(input: any): Promise<string> {
     const task = getTaskManager().create(input)
     return `Task #${task.id} created: ${task.subject}`
@@ -51,6 +57,12 @@ export class TaskUpdateTool implements Tool {
     required: ['taskId']
   }
 
+  isConcurrencySafe = () => false
+  isReadOnly = () => false
+  isDestructive = () => false
+  checkPermissions = () => ({ type: 'allow' as const })
+  preparePermissionMatcher = () => null
+
   async execute(input: any): Promise<string> {
     const task = getTaskManager().update(input)
     return `Task #${task.id} updated: ${task.status}`
@@ -61,6 +73,12 @@ export class TaskListTool implements Tool {
   name = 'task_list'
   description = 'List all tasks'
   inputSchema = { type: 'object', properties: {} }
+
+  isConcurrencySafe = () => false
+  isReadOnly = () => false
+  isDestructive = () => false
+  checkPermissions = () => ({ type: 'allow' as const })
+  preparePermissionMatcher = () => null
 
   async execute(): Promise<string> {
     const tasks = getTaskManager().list()
@@ -80,6 +98,12 @@ export class TaskGetTool implements Tool {
     properties: { taskId: { type: 'string' } },
     required: ['taskId']
   }
+
+  isConcurrencySafe = () => false
+  isReadOnly = () => false
+  isDestructive = () => false
+  checkPermissions = () => ({ type: 'allow' as const })
+  preparePermissionMatcher = () => null
 
   async execute(input: any): Promise<string> {
     const task = getTaskManager().get(input.taskId)

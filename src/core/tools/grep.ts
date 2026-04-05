@@ -1,11 +1,10 @@
-import type { Tool } from './registry'
 import { spawn } from 'child_process'
+import { createTool } from './registry'
 
-export class GrepTool implements Tool {
-  name = 'grep'
-  description = 'Search for text in files'
-  readonly = true
-  inputSchema = {
+export const GrepTool = createTool({
+  name: 'grep',
+  description: 'Search for text in files',
+  inputSchema: {
     type: 'object',
     properties: {
       pattern: {
@@ -18,8 +17,10 @@ export class GrepTool implements Tool {
       }
     },
     required: ['pattern']
-  }
-
+  },
+  isConcurrencySafe: () => true,
+  isReadOnly: () => true,
+  checkPermissions: () => ({ type: 'allow' as const }),
   async execute(input: { pattern: string; path?: string }): Promise<string> {
     return new Promise((resolve, reject) => {
       const searchPath = input.path || '.'
@@ -49,4 +50,4 @@ export class GrepTool implements Tool {
       })
     })
   }
-}
+})

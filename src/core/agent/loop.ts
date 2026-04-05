@@ -3,12 +3,13 @@ import type { ToolRegistry } from '@/core/tools/registry'
 import type { Logger } from '@/infra/logger'
 import type { ContextManager } from '@/core/context/manager'
 import type { SessionManager } from '@/core/session/manager'
+import type { PermissionContext } from '@/core/permissions'
 import { getMetrics } from '@/infra/metrics'
 
 export interface AgentContext {
   model: ModelAdapter
   tools: ToolRegistry
-  mode: 'yolo' | 'safe'
+  permissionContext: PermissionContext
   logger: Logger
   streaming?: boolean
   contextManager?: ContextManager
@@ -122,13 +123,16 @@ export class AgentLoop {
   private async executeTools(tools: any[]): Promise<any[]> {
     const metrics = getMetrics()
 
-    // Check if all tools in this batch are read-only (safe to parallelize)
-    const allReadonly = tools.every(t => this.context.tools.get(t.name)?.readonly === true)
+    // Check if all tools in this batch are concurrency-safe (safe to parallelize)
+    const allConcurrencySafe = tools.every(t => {
+      const tool = this.context.tools.get(t.name)
+      return tool?.isConcurrencySafe(t.input) ?? false
+    })
 
     const runTool = async (tool: any) => {
       try {
         const result = await metrics.measure('tool-execution', () =>
-          this.context.tools.execute(tool.name, tool.input, this.context.mode)
+          this.context.tools.execute(tool.name, tool.input, this.context.permissionContext)
         )
         process.stderr.write(`✓ ${tool.name}\n`)
         return { id: tool.id, result }
@@ -146,7 +150,7 @@ export class AgentLoop {
       }
     }
 
-    if (allReadonly) {
+    if (allConcurrencySafe) {
       return Promise.all(tools.map(runTool))
     }
 

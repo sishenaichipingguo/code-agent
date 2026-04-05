@@ -1,19 +1,20 @@
-import type { Tool } from './registry'
 import { readdir, stat } from 'fs/promises'
 import { join } from 'path'
+import { createTool } from './registry'
 
-export class LsTool implements Tool {
-  name = 'ls'
-  description = 'List files and directories'
-  readonly = true
-  inputSchema = {
+export const LsTool = createTool({
+  name: 'ls',
+  description: 'List files and directories',
+  inputSchema: {
     type: 'object',
     properties: {
       path: { type: 'string', description: 'Directory path (default: current)' },
       detailed: { type: 'boolean', description: 'Show detailed info' }
     }
-  }
-
+  },
+  isConcurrencySafe: () => true,
+  isReadOnly: () => true,
+  checkPermissions: () => ({ type: 'allow' as const }),
   async execute(input: { path?: string; detailed?: boolean }): Promise<string> {
     const dirPath = input.path || '.'
     const files = await readdir(dirPath)
@@ -34,4 +35,4 @@ export class LsTool implements Tool {
 
     return details.join('\n')
   }
-}
+})
