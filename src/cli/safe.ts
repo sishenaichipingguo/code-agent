@@ -41,6 +41,15 @@ export async function runSafe(args: Args) {
 
   // Initialize components
   const tools = await createToolRegistry()
+
+  // Start embedded MCP server if configured
+  if (config.mcp?.expose) {
+    const { startMcpServer } = await import('@/core/mcp/server')
+    startMcpServer(config, tools).catch((err: Error) =>
+      logger.warn('MCP server failed to start', { error: err.message })
+    )
+  }
+
   const model = ModelFactory.create({
     type: config.provider || 'anthropic',
     baseUrl: config.baseUrl,

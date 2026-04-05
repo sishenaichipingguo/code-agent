@@ -75,3 +75,71 @@ describe('DEFAULT_CONFIG', () => {
     expect(DEFAULT_CONFIG.logging?.level).toBe('info')
   })
 })
+
+describe('mcp config', () => {
+  it('accepts stdio server config', () => {
+    const result = ConfigSchema.safeParse({
+      mcp: {
+        servers: {
+          filesystem: {
+            type: 'stdio',
+            command: 'npx',
+            args: ['@modelcontextprotocol/server-filesystem', '/tmp']
+          }
+        }
+      }
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      const server = result.data.mcp?.servers?.['filesystem']
+      expect(server?.type).toBe('stdio')
+      if (server?.type === 'stdio') {
+        expect(server.command).toBe('npx')
+        expect(server.args).toEqual(['@modelcontextprotocol/server-filesystem', '/tmp'])
+      }
+    }
+  })
+
+  it('accepts http server config', () => {
+    const result = ConfigSchema.safeParse({
+      mcp: {
+        servers: {
+          remote: { type: 'http', url: 'http://localhost:3000/sse' }
+        }
+      }
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      const server = result.data.mcp?.servers?.['remote']
+      expect(server?.type).toBe('http')
+      if (server?.type === 'http') {
+        expect(server.url).toBe('http://localhost:3000/sse')
+      }
+    }
+  })
+
+  it('rejects invalid server type', () => {
+    const result = ConfigSchema.safeParse({
+      mcp: { servers: { bad: { type: 'websocket', url: 'ws://localhost' } } }
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('accepts expose config with defaults', () => {
+    const result = ConfigSchema.safeParse({
+      mcp: { expose: {} }
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.mcp?.expose?.tools).toEqual(['read', 'glob', 'grep', 'ls'])
+      expect(result.data.mcp?.expose?.transport).toBe('stdio')
+      expect(result.data.mcp?.expose?.port).toBe(3100)
+    }
+  })
+
+  it('mcp field is optional — existing configs still parse', () => {
+    const result = ConfigSchema.safeParse({ model: 'claude-sonnet-4', mode: 'yolo' })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data.mcp).toBeUndefined()
+  })
+})

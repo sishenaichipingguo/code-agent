@@ -164,5 +164,18 @@ export async function createToolRegistry(): Promise<ToolRegistry> {
   registry.register(new AgentTool())
   registry.register(new SendMessageTool())
 
+  // Inject tools from configured MCP servers (if any)
+  try {
+    const { getConfig } = await import('@/core/config/loader')
+    const { McpClientManager } = await import('@/core/mcp/client/manager')
+    const config = getConfig()
+    if (config.mcp?.servers && Object.keys(config.mcp.servers).length > 0) {
+      const manager = new McpClientManager()
+      await manager.loadTools(registry, config.mcp)
+    }
+  } catch {
+    // Config not yet initialized or MCP not configured — skip silently
+  }
+
   return registry
 }

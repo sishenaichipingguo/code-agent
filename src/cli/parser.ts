@@ -8,6 +8,8 @@ export interface Args {
   ui?: boolean
   resume?: boolean    // load last session and continue
   session?: string    // load specific session id and continue
+  mcpServe?: boolean  // start as standalone MCP server
+  port?: number       // port for MCP HTTP transport
 }
 
 export function parseArgs(argv: string[]): Args {
@@ -30,6 +32,10 @@ export function parseArgs(argv: string[]): Args {
       args.verbose = true
     } else if (arg === '--ui') {
       args.ui = true
+    } else if (arg === '--mcp-serve') {
+      args.mcpServe = true
+    } else if (arg === '--port' && argv[i + 1]) {
+      args.port = parseInt(argv[++i], 10)
     } else if (!arg.startsWith('-')) {
       args.message = arg
     }

@@ -1,5 +1,25 @@
 import { z } from 'zod'
 
+const McpServerConfigSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('stdio'),
+    command: z.string(),
+    args: z.array(z.string()).default([]),
+    env: z.record(z.string()).optional()
+  }),
+  z.object({
+    type: z.literal('http'),
+    url: z.string().url(),
+    headers: z.record(z.string()).optional()
+  })
+])
+
+const McpExposeSchema = z.object({
+  tools: z.array(z.string()).default(['read', 'glob', 'grep', 'ls']),
+  transport: z.enum(['stdio', 'http']).default('stdio'),
+  port: z.number().default(3100)
+})
+
 export const ConfigSchema = z.object({
   model: z.string().default('claude-sonnet-4'),
   mode: z.enum(['yolo', 'safe']).default('yolo'),
@@ -26,6 +46,11 @@ export const ConfigSchema = z.object({
   logging: z.object({
     level: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
     file: z.string().default('.agent/logs/agent.log')
+  }).optional(),
+
+  mcp: z.object({
+    servers: z.record(McpServerConfigSchema).optional(),
+    expose: McpExposeSchema.optional()
   }).optional()
 })
 
