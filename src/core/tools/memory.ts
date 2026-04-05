@@ -26,6 +26,12 @@ export class MemorySaveTool implements Tool {
     required: ['name', 'description', 'type', 'content']
   }
 
+  isConcurrencySafe = () => false
+  isReadOnly = () => false
+  isDestructive = () => false
+  checkPermissions = () => ({ type: 'allow' as const })
+  preparePermissionMatcher = () => null
+
   async execute(input: any): Promise<string> {
     const memory = getMemoryManager().save(input)
     return `Memory saved: ${memory.name} (${memory.type})`
@@ -36,6 +42,12 @@ export class MemoryLoadTool implements Tool {
   name = 'memory_load'
   description = 'Load memory index'
   inputSchema = { type: 'object', properties: {} }
+
+  isConcurrencySafe = () => false
+  isReadOnly = () => false
+  isDestructive = () => false
+  checkPermissions = () => ({ type: 'allow' as const })
+  preparePermissionMatcher = () => null
 
   async execute(): Promise<string> {
     return getMemoryManager().loadIndex()

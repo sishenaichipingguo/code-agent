@@ -35,6 +35,12 @@ export class AgentTool implements Tool {
     required: ['subagent_type', 'description', 'prompt']
   }
 
+  isConcurrencySafe = () => false
+  isReadOnly = () => false
+  isDestructive = () => false
+  checkPermissions = () => ({ type: 'allow' as const })
+  preparePermissionMatcher = () => null
+
   async execute(input: AgentInput): Promise<string> {
     const d = getAgentDispatcher()
 
@@ -64,6 +70,12 @@ export class SendMessageTool implements Tool {
     },
     required: ['to']
   }
+
+  isConcurrencySafe = () => false
+  isReadOnly = () => false
+  isDestructive = () => false
+  checkPermissions = () => ({ type: 'allow' as const })
+  preparePermissionMatcher = () => null
 
   async execute(input: { to: string }): Promise<string> {
     const d = getAgentDispatcher()

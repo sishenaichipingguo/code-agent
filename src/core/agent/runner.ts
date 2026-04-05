@@ -5,6 +5,7 @@ import { AgentLoop } from './loop'
 import { initLogger } from '@/infra/logger'
 import { initTokenTracker } from '@/infra/token-tracker'
 import { initMetrics } from '@/infra/metrics'
+import { buildPermissionContext, enterAutoMode } from '@/core/permissions'
 
 async function main() {
   const type = process.env.SUBAGENT_TYPE!
@@ -34,7 +35,7 @@ async function main() {
     const loop = new AgentLoop({
       model: modelAdapter,
       tools: restrictedRegistry,
-      mode: 'yolo',
+      permissionContext: enterAutoMode(buildPermissionContext('default')),
       logger,
       streaming: false
     })

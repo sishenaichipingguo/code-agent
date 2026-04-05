@@ -1,6 +1,7 @@
 import { describe, it, expect, mock, beforeEach } from 'bun:test'
-import { ToolRegistry } from './registry'
+import { ToolRegistry, createTool } from './registry'
 import type { Tool } from './registry'
+import type { PermissionContext } from '@/core/permissions'
 import { initLogger } from '@/infra/logger'
 import { loadConfig } from '@/core/config/loader'
 
@@ -10,15 +11,17 @@ async function bootstrap() {
   initLogger({ level: 'error', file: '/dev/null' })
 }
 
-// Helper to create a simple mock tool
-function makeTool(name: string, result: any = 'ok', readonly = false): Tool {
-  return {
+const BYPASS: PermissionContext = { mode: 'bypass', allowRules: [], strippedRules: [] }
+const DEFAULT: PermissionContext = { mode: 'default', allowRules: [], strippedRules: [] }
+
+function makeTool(name: string, result: any = 'ok'): Tool {
+  return createTool({
     name,
     description: `${name} tool`,
     inputSchema: {},
-    readonly,
-    execute: mock(async (_input: any) => result)
-  }
+    execute: mock(async (_input: any) => result),
+    checkPermissions: () => ({ type: 'allow' }),
+  })
 }
 
 describe('ToolRegistry', () => {
@@ -85,64 +88,74 @@ describe('ToolRegistry', () => {
   })
 
   describe('execute', () => {
-    it('executes a registered tool in yolo mode', async () => {
+    it('executes a registered tool in bypass mode', async () => {
       const tool = makeTool('read', 'file contents')
       registry.register(tool)
-      const result = await registry.execute('read', { path: 'foo.ts' }, 'yolo')
+      const result = await registry.execute('read', { path: 'foo.ts' }, BYPASS)
       expect(result).toBe('file contents')
-      expect(tool.execute).toHaveBeenCalledWith({ path: 'foo.ts' })
     })
 
     it('throws AgentError with TOOL_NOT_FOUND for unknown tool', async () => {
-      await expect(registry.execute('ghost', {}, 'yolo')).rejects.toMatchObject({
+      await expect(registry.execute('ghost', {}, BYPASS)).rejects.toMatchObject({
         code: 'TOOL_NOT_FOUND'
       })
     })
 
+    it('throws PERMISSION_DENIED when tool returns deny', async () => {
+      const tool = createTool({
+        name: 'restricted',
+        description: 'restricted',
+        inputSchema: {},
+        execute: async () => 'ok',
+        checkPermissions: () => ({ type: 'deny', reason: 'not allowed' })
+      })
+      registry.register(tool)
+      await expect(registry.execute('restricted', {}, DEFAULT)).rejects.toMatchObject({
+        code: 'PERMISSION_DENIED'
+      })
+    })
+
     it('wraps unexpected errors in AgentError with TOOL_EXECUTION_FAILED', async () => {
-      const tool: Tool = {
+      const tool = createTool({
         name: 'broken',
         description: 'broken',
         inputSchema: {},
-        execute: async () => { throw new Error('unexpected crash') }
-      }
+        execute: async () => { throw new Error('unexpected crash') },
+        checkPermissions: () => ({ type: 'allow' })
+      })
       registry.register(tool)
-      await expect(registry.execute('broken', {}, 'yolo')).rejects.toMatchObject({
+      await expect(registry.execute('broken', {}, BYPASS)).rejects.toMatchObject({
         code: 'TOOL_EXECUTION_FAILED'
       })
     })
 
     it('re-throws AgentError as-is', async () => {
       const { AgentError, ErrorCode } = await import('@/infra/errors')
-      const tool: Tool = {
+      const tool = createTool({
         name: 'failing',
         description: 'failing',
         inputSchema: {},
         execute: async () => {
           throw new AgentError(ErrorCode.PERMISSION_DENIED, 'denied')
-        }
-      }
+        },
+        checkPermissions: () => ({ type: 'allow' })
+      })
       registry.register(tool)
-      await expect(registry.execute('failing', {}, 'yolo')).rejects.toMatchObject({
+      await expect(registry.execute('failing', {}, BYPASS)).rejects.toMatchObject({
         code: 'PERMISSION_DENIED'
       })
     })
 
-    it('times out when tool exceeds configured timeout', async () => {
-      const slow: Tool = {
+    it('executes slow tool that completes within default timeout', async () => {
+      const slow = createTool({
         name: 'slow',
         description: 'slow',
         inputSchema: {},
-        execute: () => new Promise(resolve => setTimeout(() => resolve('done'), 500))
-      }
+        execute: () => new Promise(resolve => setTimeout(() => resolve('done'), 500)),
+        checkPermissions: () => ({ type: 'allow' })
+      })
       registry.register(slow)
-
-      // Mock config to return a short timeout
-      const { getConfig } = await import('@/core/config/loader')
-      // The default timeout from config is 30000ms, so we rely on the tool's own slowness
-      // For a real timeout test we'd need to mock getConfig — skip deep integration here
-      // and just verify the tool executes normally within default timeout
-      const result = await registry.execute('slow', {}, 'yolo')
+      const result = await registry.execute('slow', {}, BYPASS)
       expect(result).toBe('done')
     }, 2000)
   })

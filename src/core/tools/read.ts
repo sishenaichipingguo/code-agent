@@ -1,17 +1,10 @@
-import type { Tool } from './registry'
-import { readFile, stat } from 'fs/promises'
+import { readFile } from 'fs/promises'
+import { createTool } from './registry'
 
-interface ReadInput {
-  path: string
-  offset?: number
-  limit?: number
-}
-
-export class ReadTool implements Tool {
-  name = 'read'
-  description = 'Read file contents with line numbers'
-  readonly = true
-  inputSchema = {
+export const ReadTool = createTool({
+  name: 'read',
+  description: 'Read file contents with line numbers',
+  inputSchema: {
     type: 'object',
     properties: {
       path: { type: 'string', description: 'File path' },
@@ -19,9 +12,11 @@ export class ReadTool implements Tool {
       limit: { type: 'number', description: 'Max lines to read' }
     },
     required: ['path']
-  }
-
-  async execute(input: ReadInput): Promise<string> {
+  },
+  isConcurrencySafe: () => true,
+  isReadOnly: () => true,
+  checkPermissions: () => ({ type: 'allow' as const }),
+  async execute(input: { path: string; offset?: number; limit?: number }): Promise<string> {
     try {
       const content = await readFile(input.path, 'utf-8')
       const lines = content.split('\n')
@@ -39,4 +34,4 @@ export class ReadTool implements Tool {
       throw new Error(`Failed to read file: ${error.message}`)
     }
   }
-}
+})

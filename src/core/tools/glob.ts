@@ -1,11 +1,10 @@
-import type { Tool } from './registry'
 import { glob } from 'glob'
+import { createTool } from './registry'
 
-export class GlobTool implements Tool {
-  name = 'glob'
-  description = 'Find files matching a pattern'
-  readonly = true
-  inputSchema = {
+export const GlobTool = createTool({
+  name: 'glob',
+  description: 'Find files matching a pattern',
+  inputSchema: {
     type: 'object',
     properties: {
       pattern: {
@@ -14,8 +13,10 @@ export class GlobTool implements Tool {
       }
     },
     required: ['pattern']
-  }
-
+  },
+  isConcurrencySafe: () => true,
+  isReadOnly: () => true,
+  checkPermissions: () => ({ type: 'allow' as const }),
   async execute(input: { pattern: string }): Promise<string> {
     try {
       const files = await glob(input.pattern, {
@@ -28,4 +29,4 @@ export class GlobTool implements Tool {
       throw new Error(`Glob failed: ${error.message}`)
     }
   }
-}
+})

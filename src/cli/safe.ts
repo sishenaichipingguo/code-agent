@@ -1,13 +1,14 @@
 import type { Args } from './parser'
-import { initLogger, getLogger } from '@/infra/logger'
-import { initTokenTracker, getTokenTracker } from '@/infra/token-tracker'
-import { initMetrics, getMetrics } from '@/infra/metrics'
+import { initLogger } from '@/infra/logger'
+import { initTokenTracker } from '@/infra/token-tracker'
+import { initMetrics } from '@/infra/metrics'
 import { GracefulShutdown } from '@/infra/graceful-shutdown'
 import { loadConfig } from '@/core/config/loader'
 import { AgentLoop } from '@/core/agent/loop'
 import { createToolRegistry } from '@/core/tools/registry'
-import { AnthropicAdapter } from '@/core/models/anthropic'
+import { ModelFactory } from '@/core/models/factory'
 import { SessionManager } from '@/core/session/manager'
+import { buildPermissionContext } from '@/core/permissions'
 
 export async function runSafe(args: Args) {
   // Load config
@@ -24,12 +25,12 @@ export async function runSafe(args: Args) {
 
   // Setup graceful shutdown
   shutdown.onShutdown(async () => {
-    console.log('💾 Saving session...')
+    process.stderr.write('💾 Saving session...\n')
     await sessionManager.save()
   })
 
   shutdown.onShutdown(async () => {
-    console.log('📝 Closing logs...')
+    process.stderr.write('📝 Closing logs...\n')
     await logger.close()
   })
 
@@ -39,9 +40,11 @@ export async function runSafe(args: Args) {
   })
 
   // Initialize components
-  const tools = createToolRegistry()
-  const model = new AnthropicAdapter({
-    apiKey: config.apiKey || process.env.ANTHROPIC_API_KEY || '',
+  const tools = await createToolRegistry()
+  const model = ModelFactory.create({
+    type: config.provider || 'anthropic',
+    baseUrl: config.baseUrl,
+    apiKey: config.apiKey,
     model: args.model || config.model
   })
 
@@ -51,7 +54,7 @@ export async function runSafe(args: Args) {
   const loop = new AgentLoop({
     model,
     tools,
-    mode: 'safe',
+    permissionContext: buildPermissionContext('default'),
     logger,
     streaming: true
   })
@@ -68,7 +71,7 @@ export async function runSafe(args: Args) {
 }
 
 async function promptUser(): Promise<string> {
-  console.log('Enter your request:')
+  process.stderr.write('Enter your request:\n')
   const decoder = new TextDecoder()
   const buffer = new Uint8Array(1024)
   const n = await Bun.stdin.read(buffer)
