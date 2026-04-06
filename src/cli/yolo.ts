@@ -110,9 +110,13 @@ export async function runYolo(args: Args) {
     sessionManager
   })
 
-  const message = args.message || await promptUser()
+  const rawMessage = args.message || await promptUser()
 
-  await loop.run(message)
+  if (rawMessage.trim().toLowerCase() === '/compact') {
+    await loop.compact(loop.getMessages())
+  } else {
+    await loop.run(rawMessage)
+  }
 
   await sessionManager.save()
 
