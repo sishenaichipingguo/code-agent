@@ -1,7 +1,7 @@
 import type { ModelAdapter } from '@/core/models/adapter'
 import type { ToolRegistry } from '@/core/tools/registry'
 import type { Logger } from '@/infra/logger'
-import type { ContextManager } from '@/core/context/manager'
+import type { ContextManager, CompressionStrategy } from '@/core/context/manager'
 import type { SessionManager } from '@/core/session/manager'
 import type { PermissionContext } from '@/core/permissions'
 import { getMetrics } from '@/infra/metrics'
@@ -24,13 +24,16 @@ interface Message {
 }
 
 export class AgentLoop {
+  private _messages: Message[] = []
+
   constructor(private context: AgentContext) {}
 
   async run(userMessage: string): Promise<string> {
     const metrics = getMetrics()
 
     // Seed with history if resuming a session
-    const messages: Message[] = [...(this.context.initialMessages ?? [])]
+    this._messages = [...(this.context.initialMessages ?? [])]
+    const messages = this._messages
 
     // Save and append the new user message
     const userMsg: Message = { role: 'user', content: userMessage }
@@ -57,9 +60,11 @@ export class AgentLoop {
           }
           await this.maybeCompress(messages, result.inputTokens)
         } else {
-          const response = await metrics.measure('api-call', () =>
-            this.context.model.chat(request, this.context.tools)
-          )
+          const response = this.context.contextManager
+            ? await this.context.contextManager.ptlRetry(messages as any, () =>
+                metrics.measure('api-call', () => this.context.model.chat(request, this.context.tools))
+              )
+            : await metrics.measure('api-call', () => this.context.model.chat(request, this.context.tools))
 
           await this.maybeCompress(messages, response.inputTokens)
 
@@ -109,15 +114,30 @@ export class AgentLoop {
     }
   }
 
-  private async maybeCompress(messages: Message[], inputTokens?: number) {
+  private async maybeCompress(messages: Message[], inputTokens?: number, strategy: CompressionStrategy = 'auto') {
     if (!this.context.contextManager || !inputTokens) return
     if (this.context.contextManager.shouldCompress(inputTokens)) {
-      this.context.logger.warn('Context approaching limit, compressing history', { inputTokens })
-      process.stderr.write(`⚠️  Context at ${inputTokens.toLocaleString()} tokens — compressing history...\n`)
-      const compressed = await this.context.contextManager.compress(messages)
+      this.context.logger.warn('Context approaching limit, compressing history', { inputTokens, strategy })
+      process.stderr.write(`⚠️  Context at ${inputTokens.toLocaleString()} tokens — compressing (${strategy})...\n`)
+      const compressed = await this.context.contextManager.compress(messages as any, strategy)
       messages.splice(0, messages.length, ...compressed)
       process.stderr.write(`✓ Compressed to ${compressed.length} messages\n`)
     }
+  }
+
+  async compact(messages: Message[]): Promise<void> {
+    if (!this.context.contextManager) {
+      process.stderr.write('⚠️  No context manager configured, /compact unavailable\n')
+      return
+    }
+    process.stderr.write('🗜  Compressing context on request...\n')
+    const compressed = await this.context.contextManager.compress(messages as any, 'manual')
+    messages.splice(0, messages.length, ...compressed)
+    process.stderr.write(`✓ Context compressed to ${compressed.length} messages\n`)
+  }
+
+  getMessages(): Message[] {
+    return this._messages
   }
 
   private async executeTools(tools: any[]): Promise<any[]> {

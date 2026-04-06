@@ -1,17 +1,22 @@
 import type { ModelAdapter } from '@/core/models/adapter'
 import { MODEL_CONTEXT_LIMITS } from '@/core/models/types'
+import type { RawMessage } from './compressors/types'
+import { AutoCompressor } from './compressors/auto'
+import { MicroCompactor } from './compressors/micro'
+import { ManualCompactor } from './compressors/manual'
 
-interface Message {
-  role: 'user' | 'assistant'
-  content: any
-}
+export type CompressionStrategy = 'auto' | 'micro' | 'manual'
 
-// Trigger compression when input tokens exceed this fraction of the model's context limit
 const COMPRESS_THRESHOLD = 0.8
-// Number of recent conversation rounds (assistant+user pairs) to preserve after compression
-const KEEP_RECENT_ROUNDS = 3
+const PTL_PATTERNS = ['prompt is too long', 'prompt_too_long', 'context_length_exceeded', 'maximum context length']
 
 export class ContextManager {
+  private compressors = {
+    auto: new AutoCompressor(),
+    micro: new MicroCompactor(),
+    manual: new ManualCompactor()
+  }
+
   constructor(
     private model: ModelAdapter,
     private modelName: string
@@ -22,40 +27,36 @@ export class ContextManager {
     return inputTokens > limit * COMPRESS_THRESHOLD
   }
 
-  async compress(messages: Message[]): Promise<Message[]> {
-    const keepCount = KEEP_RECENT_ROUNDS * 2  // each round = 1 assistant + 1 user message
-    if (messages.length <= keepCount + 1) {
-      // Not enough history to compress meaningfully
-      return messages
+  async compress(messages: RawMessage[], strategy: CompressionStrategy = 'auto'): Promise<RawMessage[]> {
+    const compressor = this.compressors[strategy]
+    const result = await compressor.run(messages, this.model, this.modelName)
+    return [this.buildPostCompressMessage(result.summary, strategy), ...result.messages]
+  }
+
+  /** Execute fn(); if a PTL-style error is thrown, compress with 'auto' and retry once. */
+  async ptlRetry<T>(messages: RawMessage[], fn: () => Promise<T>): Promise<T> {
+    try {
+      return await fn()
+    } catch (err: any) {
+      const msg: string = (err?.message ?? '').toLowerCase()
+      const isPtl = PTL_PATTERNS.some(p => msg.includes(p))
+      if (!isPtl) throw err
+
+      const compressed = await this.compress(messages, 'auto')
+      messages.splice(0, messages.length, ...compressed)
+      return fn()
     }
+  }
 
-    const toSummarize = messages.slice(0, messages.length - keepCount)
-    const toKeep = messages.slice(messages.length - keepCount)
-
-    // Call the model to summarize — no tools needed, plain text only
-    const summaryResponse = await this.model.chat(
-      {
-        model: this.modelName,
-        messages: [
-          ...toSummarize,
-          {
-            role: 'user',
-            content: 'Summarize the above conversation concisely. Preserve: key decisions made, files created or modified, errors encountered and how they were resolved, and any context needed to continue the current task.'
-          }
-        ] as any,
-        max_tokens: 1024,
-        stream: false
-      },
-      { toSchema: () => [] }  // no tools for summary call
-    )
-
-    const summary = summaryResponse.content ?? 'Previous conversation summarized (content unavailable).'
-
-    const summaryMessage: Message = {
+  private buildPostCompressMessage(summary: string, strategy: CompressionStrategy): RawMessage {
+    const label = strategy === 'manual' ? 'manual /compact' : `auto (${strategy})`
+    return {
       role: 'user',
-      content: `[Context summary — earlier conversation compressed]\n${summary}`
+      content: [
+        `[Context compressed — ${label}]`,
+        summary ? `Summary: ${summary}` : '',
+        'The full conversation history above this point has been summarized. Continue the current task using this context.'
+      ].filter(Boolean).join('\n')
     }
-
-    return [summaryMessage, ...toKeep]
   }
 }
