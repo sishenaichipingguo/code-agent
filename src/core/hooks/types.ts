@@ -11,7 +11,7 @@ export type OnError = 'warn' | 'abort' | 'ignore'
 
 export interface HookEntry {
   command: string
-  on_error: OnError
+  onError: OnError
   timeout: number
 }
 
