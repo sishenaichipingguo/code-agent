@@ -39,3 +39,21 @@ describe('AgentInitializer', () => {
     expect(loop).toBeInstanceOf(AgentLoop)
   })
 })
+
+import { createAgent } from '../src/index'
+
+describe('createAgent()', () => {
+  test('returns object with run() and loop', async () => {
+    process.env.ANTHROPIC_API_KEY = 'test-key'
+    const agent = await createAgent({ cwd: process.cwd() })
+    expect(typeof agent.run).toBe('function')
+    expect(agent.loop).toBeDefined()
+  })
+
+  test('exposes init on returned agent', async () => {
+    process.env.ANTHROPIC_API_KEY = 'test-key'
+    const agent = await createAgent({ cwd: process.cwd() })
+    expect(agent.init).toBeDefined()
+    expect(agent.init.config).toBeDefined()
+  })
+})
