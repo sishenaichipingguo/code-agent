@@ -81,15 +81,15 @@ export class ToolRegistry {
       AGENT_TOOL_INPUT: JSON.stringify(input)
     }
 
+    // pre-tool: runs before try — if hook aborts, error propagates directly (not wrapped as TOOL_EXECUTION_FAILED)
+    let effectiveInput = input
+    if (this.hooks) {
+      const transformed = await this.hooks.transform('pre-tool', { name, input }, hookEnv)
+      effectiveInput = transformed.input
+    }
+
     try {
       logger.info('Tool execution started', { tool: name })
-
-      // pre-tool: transform — may modify input; on_error: abort will throw and cancel execution
-      let effectiveInput = input
-      if (this.hooks) {
-        const transformed = await this.hooks.transform('pre-tool', { name, input }, hookEnv)
-        effectiveInput = transformed.input
-      }
 
       const result = await executeWithTimeout(
         tool.execute(effectiveInput),
@@ -98,7 +98,7 @@ export class ToolRegistry {
       )
       logger.info('Tool execution completed', { tool: name })
 
-      // post-tool: notify — fire and forget, result already computed
+      // post-tool: notify — awaited sequentially, result already computed
       await this.hooks?.fire('post-tool', {
         ...hookEnv,
         AGENT_TOOL_RESULT: typeof result === 'string' ? result : JSON.stringify(result)
@@ -142,6 +142,7 @@ export class ToolRegistry {
       const tool = this.tools.get(name)
       if (tool) restricted.register(tool)
     }
+    restricted.hooks = this.hooks
     return restricted
   }
 }
