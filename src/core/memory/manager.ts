@@ -3,21 +3,29 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, unlink
 import { join } from 'path'
 
 export class MemoryManager {
-  private memoryDir: string
-  private indexPath: string
+  private memoryDir: string        // write target (may be namespaced)
+  private rootMemoryDir: string    // always the root .claude/memory
+  private indexPath: string        // always root MEMORY.md
 
   constructor(projectRoot: string) {
-    this.memoryDir = join(projectRoot, '.claude', 'memory')
-    this.indexPath = join(this.memoryDir, 'MEMORY.md')
+    this.rootMemoryDir = join(projectRoot, '.claude', 'memory')
+    const namespace = process.env.MEMORY_NAMESPACE
+    this.memoryDir = namespace
+      ? join(this.rootMemoryDir, namespace)
+      : this.rootMemoryDir
+    this.indexPath = join(this.rootMemoryDir, 'MEMORY.md')
     this.ensureMemoryDir()
   }
 
   private ensureMemoryDir() {
-    if (!existsSync(this.memoryDir)) {
-      mkdirSync(this.memoryDir, { recursive: true })
+    if (!existsSync(this.rootMemoryDir)) {
+      mkdirSync(this.rootMemoryDir, { recursive: true })
     }
     if (!existsSync(this.indexPath)) {
       writeFileSync(this.indexPath, '# Memory Index\n\n## User\n\n## Feedback\n\n## Project\n\n## Reference\n')
+    }
+    if (this.memoryDir !== this.rootMemoryDir && !existsSync(this.memoryDir)) {
+      mkdirSync(this.memoryDir, { recursive: true })
     }
   }
 
