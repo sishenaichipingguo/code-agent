@@ -34,8 +34,6 @@ export class AgentLoop {
     const metrics = getMetrics()
     const hookEnv = { AGENT_CWD: process.cwd() }
 
-    await this.context.hooks?.fire('session-start', hookEnv)
-
     // Seed with history if resuming a session
     this._messages = [...(this.context.initialMessages ?? [])]
     const messages = this._messages
@@ -49,6 +47,8 @@ export class AgentLoop {
     let finalText = ''
 
     try {
+      await this.context.hooks?.fire('session-start', hookEnv)
+
       while (true) {
         const request = {
           model: this.context.model.name,
@@ -247,9 +247,10 @@ export class AgentLoop {
         if (fullText) {
           const hookEnv = { AGENT_CWD: process.cwd() }
           const sampled = await this.context.hooks?.transform('post-sampling', { text: fullText }, hookEnv)
-          if (sampled?.text) fullText = sampled.text
+          const displayText = sampled?.text ?? fullText
           messages.push({ role: 'assistant', content: [{ type: 'text', text: fullText }] })
           await this.saveMessage('assistant', [{ type: 'text', text: fullText }])
+          return { done: true, text: displayText, inputTokens }
         }
         return { done: true, text: fullText, inputTokens }
       }
