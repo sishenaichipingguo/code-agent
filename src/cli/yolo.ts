@@ -14,6 +14,7 @@ import { SystemPromptBuilder } from '@/core/system-prompt/builder'
 import { initMemoryManager, getMemoryManager, initTeamStore, getTeamStore } from '@/core/tools/memory'
 import { buildPermissionContext } from '@/core/permissions'
 import { SessionStore } from '@/core/memory/session-store'
+import { createHookManager } from '@/core/hooks/manager'
 import { AutoExtractor } from '@/core/memory/auto-extractor'
 import type { TeamStore } from '@/core/memory/team-store'
 
@@ -44,6 +45,7 @@ export async function runYolo(args: Args) {
   })
 
   const tools = await createToolRegistry()
+  const hookManager = createHookManager(config.hooks as any)
 
   // Start embedded MCP server if configured
   if (config.mcp?.expose) {
@@ -99,7 +101,7 @@ export async function runYolo(args: Args) {
   }
 
   const modelName = args.model || config.model
-  const contextManager = new ContextManager(model, modelName)
+  const contextManager = new ContextManager(model, modelName, hookManager)
 
   // Build full system prompt: role rules + env info + MEMORY.md + CLAUDE.md
   let memoryMgr: ReturnType<typeof getMemoryManager> | undefined
@@ -118,8 +120,11 @@ export async function runYolo(args: Args) {
     contextManager,
     systemPrompt,
     initialMessages,
-    sessionManager
+    sessionManager,
+    hooks: hookManager
   })
+
+  tools.hooks = hookManager
 
   shutdown.onShutdown(async () => {
     const msgs = loop.getMessages()
