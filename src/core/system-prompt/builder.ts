@@ -3,11 +3,13 @@ import { platform } from 'os'
 import { loadClaudeMd } from './claude-md'
 import type { MemoryManager } from '@/core/memory/manager'
 import { truncateMemoryIndex } from '@/core/memory/limits'
+import type { SessionStore } from '@/core/memory/session-store'
 
 export class SystemPromptBuilder {
   constructor(
     private cwd: string,
-    private memoryManager?: MemoryManager
+    private memoryManager?: MemoryManager,
+    private sessionStore?: SessionStore
   ) {}
 
   async build(): Promise<string> {
@@ -19,11 +21,17 @@ export class SystemPromptBuilder {
     // 2. Environment info
     sections.push(this.buildEnv())
 
-    // 3. Memory index (if available and non-empty)
+    // 3. Previous session summary (if available)
+    if (this.sessionStore) {
+      const summary = this.sessionStore.load()
+      if (summary.trim()) sections.push(`## Previous Session\n${summary.trim()}`)
+    }
+
+    // 4. Memory index (if available and non-empty)
     const memory = this.buildMemory()
     if (memory) sections.push(memory)
 
-    // 4. CLAUDE.md (project + global instructions)
+    // 5. CLAUDE.md (project + global instructions)
     const claudeMd = await loadClaudeMd(this.cwd)
     if (claudeMd) sections.push(claudeMd)
 

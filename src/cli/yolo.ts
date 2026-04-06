@@ -13,6 +13,7 @@ import { ContextManager } from '@/core/context/manager'
 import { SystemPromptBuilder } from '@/core/system-prompt/builder'
 import { initMemoryManager, getMemoryManager } from '@/core/tools/memory'
 import { buildPermissionContext } from '@/core/permissions'
+import { SessionStore } from '@/core/memory/session-store'
 
 export async function runYolo(args: Args) {
   const config = await loadConfig(args.config)
@@ -59,6 +60,7 @@ export async function runYolo(args: Args) {
 
   // Initialize memory manager so memory tools work and MEMORY.md can be injected
   initMemoryManager(process.cwd())
+  const sessionStore = new SessionStore(process.cwd(), model)
 
   // Initialize dispatcher with the same model config so subagents use the same provider
   initAgentDispatcher({
@@ -95,7 +97,7 @@ export async function runYolo(args: Args) {
   // Build full system prompt: role rules + env info + MEMORY.md + CLAUDE.md
   let memoryMgr: ReturnType<typeof getMemoryManager> | undefined
   try { memoryMgr = getMemoryManager() } catch { /* not initialized */ }
-  const systemPrompt = await new SystemPromptBuilder(process.cwd(), memoryMgr).build()
+  const systemPrompt = await new SystemPromptBuilder(process.cwd(), memoryMgr, sessionStore).build()
   logger.debug('System prompt built', { length: systemPrompt.length })
 
   const loop = new AgentLoop({
@@ -108,6 +110,14 @@ export async function runYolo(args: Args) {
     systemPrompt,
     initialMessages,
     sessionManager
+  })
+
+  shutdown.onShutdown(async () => {
+    const msgs = loop.getMessages()
+    if (msgs.length >= 2) {
+      process.stderr.write('🧠 Saving session summary...\n')
+      await sessionStore.save(msgs)
+    }
   })
 
   const rawMessage = args.message || await promptUser()
