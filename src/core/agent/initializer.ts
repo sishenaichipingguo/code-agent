@@ -24,7 +24,6 @@ export interface AgentInitOptions {
   configPath?: string
   model?: string
   disableMemory?: boolean
-  minimal?: boolean
 }
 
 export interface BuildLoopOptions {
@@ -65,7 +64,7 @@ export class AgentInitializer {
     this._sessionManager = new SessionManager()
 
     this._tools = await createToolRegistry()
-    this._hookManager = createHookManager(this._config.hooks as any)
+    this._hookManager = createHookManager(this._config.hooks)
     if (this._hookManager) {
       this._tools.hooks = this._hookManager
     }
@@ -91,7 +90,8 @@ export class AgentInitializer {
         initTeamStore(this._config.memory.teamDir)
         try { this._teamStore = getTeamStore() } catch { /* not configured */ }
       }
-      const memMgr = (() => { try { return getMemoryManager() } catch { return undefined } })()
+      let memMgr: ReturnType<typeof getMemoryManager> | undefined
+      try { memMgr = getMemoryManager() } catch { /* not initialized */ }
       if (memMgr) this._autoExtractor = new AutoExtractor(memMgr, this._model)
     }
     this._sessionStore = new SessionStore(cwd, this._model)
@@ -108,7 +108,8 @@ export class AgentInitializer {
   }
 
   async buildSystemPrompt(): Promise<string> {
-    const memMgr = (() => { try { return getMemoryManager() } catch { return undefined } })()
+    let memMgr: ReturnType<typeof getMemoryManager> | undefined
+    try { memMgr = getMemoryManager() } catch { /* not initialized */ }
     return new SystemPromptBuilder(
       this.opts.cwd,
       memMgr,
@@ -155,13 +156,14 @@ export class AgentInitializer {
       }
     })
 
-    if (_autoExtractor) {
+    if (this._autoExtractor) {
+      const extractor = this._autoExtractor
       shutdown.onShutdown(async () => {
         const msgs = loop.getMessages()
         const threshold = _config.memory?.extractThreshold ?? 6
         if (_config.memory?.autoExtract !== false && msgs.length >= threshold) {
           process.stderr.write('Extracting memories from session...\n')
-          await _autoExtractor!.extract(msgs)
+          await extractor.extract(msgs)
         }
       })
     }
