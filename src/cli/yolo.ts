@@ -1,5 +1,4 @@
 import type { Args } from './parser'
-import { initLogger, getLogger } from '@/infra/logger'
 import { SlashCommandRegistry } from '@/core/slash/registry'
 import { SkillLoader } from '@/core/slash/skill-loader'
 import { PluginManager } from '@/core/plugins/manager'
@@ -14,88 +13,26 @@ import { makeSkillsHandler } from '@/core/slash/builtins/skills'
 import { makePluginsHandler } from '@/core/slash/builtins/plugins'
 import os from 'os'
 import { join } from 'path'
-import { initTokenTracker, getTokenTracker } from '@/infra/token-tracker'
-import { initMetrics, getMetrics } from '@/infra/metrics'
-import { GracefulShutdown } from '@/infra/graceful-shutdown'
-import { loadConfig } from '@/core/config/loader'
-import { AgentLoop } from '@/core/agent/loop'
-import { createToolRegistry } from '@/core/tools/registry'
-import { ModelFactory } from '@/core/models/factory'
-import { SessionManager } from '@/core/session/manager'
-import { initAgentDispatcher } from '@/core/tools/agent'
-import { ContextManager } from '@/core/context/manager'
-import { SystemPromptBuilder } from '@/core/system-prompt/builder'
-import { initMemoryManager, getMemoryManager, initTeamStore, getTeamStore } from '@/core/tools/memory'
-import { buildPermissionContext } from '@/core/permissions'
-import { SessionStore } from '@/core/memory/session-store'
-import { createHookManager } from '@/core/hooks/manager'
-import { AutoExtractor } from '@/core/memory/auto-extractor'
-import type { TeamStore } from '@/core/memory/team-store'
+import { getTokenTracker } from '@/infra/token-tracker'
+import { getMetrics } from '@/infra/metrics'
+import { getLogger } from '@/infra/logger'
+import { AgentInitializer } from '@/core/agent/initializer'
 
 export async function runYolo(args: Args) {
-  const config = await loadConfig(args.config)
+  const init = new AgentInitializer({
+    cwd: process.cwd(),
+    configPath: args.config,
+    model: args.model
+  })
+  await init.setup()
 
-  const logger = initLogger(config.logging!)
-  const tracker = initTokenTracker()
-  const metrics = initMetrics()
-  const shutdown = new GracefulShutdown()
-  const sessionManager = new SessionManager()
+  const { config, sessionManager } = init
+  const logger = getLogger()
 
   logger.info('Starting in YOLO mode')
 
-  shutdown.onShutdown(async () => {
-    process.stderr.write('💾 Saving session...\n')
-    await sessionManager.save()
-  })
-
-  shutdown.onShutdown(async () => {
-    process.stderr.write('📝 Closing logs...\n')
-    await logger.close()
-  })
-
-  shutdown.onShutdown(async () => {
-    tracker.printSummary()
-    metrics.printSummary()
-  })
-
-  const tools = await createToolRegistry()
-  const hookManager = createHookManager(config.hooks as any)
-
-  // Start embedded MCP server if configured
-  if (config.mcp?.expose) {
-    const { startMcpServer } = await import('@/core/mcp/server')
-    startMcpServer(config, tools).catch((err: Error) =>
-      logger.warn('MCP server failed to start', { error: err.message })
-    )
-  }
-
-  const model = ModelFactory.create({
-    type: config.provider || 'anthropic',
-    baseUrl: config.baseUrl,
-    apiKey: config.apiKey,
-    model: args.model || config.model
-  })
-
-  // Initialize memory manager so memory tools work and MEMORY.md can be injected
-  initMemoryManager(process.cwd())
-  let teamStoreMgr: TeamStore | undefined
-  if (config.memory?.teamDir) {
-    initTeamStore(config.memory.teamDir)
-    try { teamStoreMgr = getTeamStore() } catch { /* teamDir not configured */ }
-  }
-  const sessionStore = new SessionStore(process.cwd(), model)
-
-  // Initialize dispatcher with the same model config so subagents use the same provider
-  initAgentDispatcher({
-    provider: config.provider ?? 'anthropic',
-    model: args.model || config.model,
-    apiKey: config.apiKey,
-    baseUrl: config.baseUrl
-  })
-
-  logger.info('Using provider', { provider: model.name, model: config.model })
-
-  await sessionManager.createSession('yolo', config.model)
+  const systemPrompt = await init.buildSystemPrompt()
+  logger.debug('System prompt built', { length: systemPrompt.length })
 
   // Resume session if requested
   let initialMessages: Array<{ role: 'user' | 'assistant'; content: any }> = []
@@ -105,7 +42,6 @@ export async function runYolo(args: Args) {
       : await sessionManager.loadLast()
 
     if (existing) {
-      // Strip timestamp — loop only needs role + content
       initialMessages = existing.messages.map(({ role, content }) => ({ role, content }))
       process.stderr.write(`↩ Resuming session ${existing.id} (${initialMessages.length} messages)\n`)
       logger.info('Resuming session', { id: existing.id, messages: initialMessages.length })
@@ -114,43 +50,25 @@ export async function runYolo(args: Args) {
     }
   }
 
-  const modelName = args.model || config.model
-  const contextManager = new ContextManager(model, modelName, hookManager)
+  await sessionManager.createSession('yolo', config.model)
 
-  // Build full system prompt: role rules + env info + MEMORY.md + CLAUDE.md
-  let memoryMgr: ReturnType<typeof getMemoryManager> | undefined
-  try { memoryMgr = getMemoryManager() } catch { /* not initialized */ }
-  let autoExtractor: AutoExtractor | undefined
-  if (memoryMgr) autoExtractor = new AutoExtractor(memoryMgr, model)
-  const systemPrompt = await new SystemPromptBuilder(process.cwd(), memoryMgr, sessionStore, teamStoreMgr).build()
-  logger.debug('System prompt built', { length: systemPrompt.length })
-
-  const loop = new AgentLoop({
-    model,
-    tools,
-    permissionContext: buildPermissionContext('bypass'),
-    logger,
-    streaming: true,
-    contextManager,
+  const loop = init.buildLoop({
+    permissionMode: 'bypass',
     systemPrompt,
-    initialMessages,
-    sessionManager,
-    hooks: hookManager
+    initialMessages
   })
 
-  tools.hooks = hookManager
+  init.registerShutdownHandlers(loop)
 
-  // Build slash command registry
+  // Slash commands & plugins
   const registry = new SlashCommandRegistry()
 
-  // Discover plugins (project-level then user-level, user has higher priority)
   const pluginManager = new PluginManager([
     join(process.cwd(), '.agent', 'plugins'),
     join(os.homedir(), '.agent', 'plugins')
   ])
   await pluginManager.discover()
 
-  // Load skills: user < project < plugin (later = higher priority)
   const skillLoader = new SkillLoader([
     join(os.homedir(), '.agent', 'skills'),
     join(process.cwd(), '.agent', 'skills'),
@@ -158,7 +76,6 @@ export async function runYolo(args: Args) {
   ])
   await skillLoader.loadInto(registry)
 
-  // Register built-in commands (priority -1 so skills can override)
   registry.register({ name: 'compact', description: 'Compress conversation context', args: 'none', handler: compactHandler }, -1)
   registry.register({ name: 'cost', description: 'Show token usage and cost', args: 'none', handler: costHandler }, -1)
   registry.register({ name: 'clear', description: 'Clear conversation history', args: 'none', handler: clearHandler }, -1)
@@ -169,26 +86,8 @@ export async function runYolo(args: Args) {
   registry.register({ name: 'plugins', description: 'List loaded plugins', args: 'none', handler: makePluginsHandler(pluginManager) }, -1)
   registry.register({ name: 'help', description: 'List all available commands', args: 'none', handler: makeHelpHandler(registry) }, -1)
 
-  shutdown.onShutdown(async () => {
-    const msgs = loop.getMessages()
-    if (msgs.length >= 2) {
-      process.stderr.write('🧠 Saving session summary...\n')
-      await sessionStore.save(msgs)
-    }
-  })
-
-  shutdown.onShutdown(async () => {
-    if (!autoExtractor) return
-    const msgs = loop.getMessages()
-    const shouldExtract = config.memory?.autoExtract !== false &&
-      msgs.length >= (config.memory?.extractThreshold ?? 6)
-    if (shouldExtract) {
-      process.stderr.write('🧠 Extracting memories from session...\n')
-      await autoExtractor.extract(msgs)
-    }
-  })
-
   const rawMessage = args.message || await promptUser()
+  const tracker = getTokenTracker()
   const cmdCtx = { args: '', loop, config, tokenTracker: tracker, sessionManager }
   const dispatchResult = await registry.dispatch(rawMessage, cmdCtx)
 
@@ -197,12 +96,10 @@ export async function runYolo(args: Args) {
   } else if (dispatchResult.type === 'unknown') {
     await loop.run(rawMessage)
   }
-  // type === 'handled' → command already ran, nothing more to do
 
   await sessionManager.save()
-
   tracker.printSummary()
-  metrics.printSummary()
+  getMetrics().printSummary()
 }
 
 async function promptUser(): Promise<string> {
