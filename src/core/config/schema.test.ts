@@ -143,3 +143,30 @@ describe('mcp config', () => {
     if (result.success) expect(result.data.mcp).toBeUndefined()
   })
 })
+
+describe('hooks config', () => {
+  it('accepts a valid hooks section', () => {
+    const result = ConfigSchema.parse({
+      hooks: {
+        'pre-tool': [{ command: 'echo hi', onError: 'abort', timeout: 3000 }],
+        'session-end': [{ command: 'bash cleanup.sh' }]
+      }
+    })
+    expect(result.hooks?.['pre-tool']?.[0].command).toBe('echo hi')
+    expect(result.hooks?.['pre-tool']?.[0].onError).toBe('abort')
+    expect(result.hooks?.['pre-tool']?.[0].timeout).toBe(3000)
+  })
+
+  it('applies defaults for onError and timeout', () => {
+    const result = ConfigSchema.parse({
+      hooks: { 'post-tool': [{ command: 'bash notify.sh' }] }
+    })
+    expect(result.hooks?.['post-tool']?.[0].onError).toBe('warn')
+    expect(result.hooks?.['post-tool']?.[0].timeout).toBe(5000)
+  })
+
+  it('omits hooks when not configured', () => {
+    const result = ConfigSchema.parse({})
+    expect(result.hooks).toBeUndefined()
+  })
+})
