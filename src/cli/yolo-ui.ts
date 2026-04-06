@@ -1,38 +1,22 @@
 import React from 'react'
 import { render } from 'ink'
 import type { Args } from './parser'
-import { loadConfig } from '@/core/config/loader'
-import { initLogger } from '@/infra/logger'
-import { initTokenTracker } from '@/infra/token-tracker'
-import { initMetrics } from '@/infra/metrics'
-import { GracefulShutdown } from '@/infra/graceful-shutdown'
-import { createToolRegistry } from '@/core/tools/registry'
-import { AnthropicAdapter } from '@/core/models/anthropic'
-import { SessionManager } from '@/core/session/manager'
+import { getLogger } from '@/infra/logger'
+import { AgentInitializer } from '@/core/agent/initializer'
 import { App } from '@/ui/App'
 
 export async function runYoloUI(args: Args) {
-  const config = await loadConfig()
-  const logger = initLogger(config.logging!)
-  const tracker = initTokenTracker()
-  const metrics = initMetrics()
-  const shutdown = new GracefulShutdown()
-  const sessionManager = new SessionManager()
+  const init = new AgentInitializer({
+    cwd: process.cwd(),
+    configPath: args.config,
+    model: args.model
+  })
+  await init.setup()
+
+  const { config, sessionManager, model, tools } = init
+  const logger = getLogger()
 
   logger.info('Starting in YOLO mode with UI')
-
-  shutdown.onShutdown(async () => {
-    await sessionManager.save()
-    await logger.close()
-    tracker.printSummary()
-    metrics.printSummary()
-  })
-
-  const tools = createToolRegistry()
-  const model = new AnthropicAdapter({
-    apiKey: config.apiKey || process.env.ANTHROPIC_API_KEY || '',
-    model: args.model || config.model
-  })
 
   await sessionManager.createSession('yolo', config.model)
 
