@@ -51,6 +51,12 @@ export const ConfigSchema = z.object({
   mcp: z.object({
     servers: z.record(McpServerConfigSchema).optional(),
     expose: McpExposeSchema.optional()
+  }).optional(),
+
+  memory: z.object({
+    teamDir: z.string().optional(),
+    autoExtract: z.boolean().default(true),
+    extractThreshold: z.number().default(6)
   }).optional()
 })
 

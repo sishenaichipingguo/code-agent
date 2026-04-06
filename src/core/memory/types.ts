@@ -16,3 +16,10 @@ export interface MemoryCreateInput {
   type: MemoryType
   content: string
 }
+
+export interface MemoryUpdateInput {
+  name: string
+  description: string
+  type: MemoryType
+  content: string
+}
