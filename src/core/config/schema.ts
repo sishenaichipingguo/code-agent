@@ -57,7 +57,21 @@ export const ConfigSchema = z.object({
     teamDir: z.string().optional(),
     autoExtract: z.boolean().default(true),
     extractThreshold: z.number().default(6)
-  }).optional()
+  }).optional(),
+
+  hooks: z.record(
+    z.enum([
+      'session-start', 'session-end',
+      'pre-tool', 'post-tool',
+      'pre-compress', 'post-compress',
+      'post-sampling'
+    ]),
+    z.array(z.object({
+      command: z.string(),
+      onError: z.enum(['warn', 'abort', 'ignore']).default('warn'),
+      timeout: z.number().default(5000)
+    }))
+  ).optional()
 })
 
 export type Config = z.infer<typeof ConfigSchema>

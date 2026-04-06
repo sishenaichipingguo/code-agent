@@ -4,6 +4,7 @@ import type { RawMessage } from './compressors/types'
 import { AutoCompressor } from './compressors/auto'
 import { MicroCompactor } from './compressors/micro'
 import { ManualCompactor } from './compressors/manual'
+import type { HookManager } from '@/core/hooks/manager'
 
 export type CompressionStrategy = 'auto' | 'micro' | 'manual'
 
@@ -19,7 +20,8 @@ export class ContextManager {
 
   constructor(
     private model: ModelAdapter,
-    private modelName: string
+    private modelName: string,
+    private hooks?: HookManager
   ) {}
 
   shouldCompress(inputTokens: number): boolean {
@@ -28,9 +30,27 @@ export class ContextManager {
   }
 
   async compress(messages: RawMessage[], strategy: CompressionStrategy = 'auto'): Promise<RawMessage[]> {
+    const hookEnv: Record<string, string> = { AGENT_COMPRESS_STRATEGY: strategy }
+
+    // pre-compress: transform — hook may archive or modify messages before summarisation
+    let effectiveMessages = messages
+    if (this.hooks) {
+      const transformed = await this.hooks.transform('pre-compress', { messages }, hookEnv)
+      effectiveMessages = transformed.messages
+    }
+
     const compressor = this.compressors[strategy]
-    const result = await compressor.run(messages, this.model, this.modelName)
-    return [this.buildPostCompressMessage(result.summary, strategy), ...result.messages]
+    const result = await compressor.run(effectiveMessages, this.model, this.modelName)
+    const compressed = [this.buildPostCompressMessage(result.summary, strategy), ...result.messages]
+
+    // post-compress: notify
+    await this.hooks?.fire('post-compress', {
+      ...hookEnv,
+      AGENT_COMPRESS_ORIGINAL_COUNT: String(messages.length),
+      AGENT_COMPRESS_RESULT_COUNT: String(compressed.length)
+    })
+
+    return compressed
   }
 
   /** Execute fn(); if a PTL-style error is thrown, compress with 'auto' and retry once. */
