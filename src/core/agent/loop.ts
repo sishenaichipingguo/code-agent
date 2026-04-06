@@ -4,6 +4,7 @@ import type { Logger } from '@/infra/logger'
 import type { ContextManager, CompressionStrategy } from '@/core/context/manager'
 import type { SessionManager } from '@/core/session/manager'
 import type { PermissionContext } from '@/core/permissions'
+import type { HookManager } from '@/core/hooks/manager'
 import { getMetrics } from '@/infra/metrics'
 
 export interface AgentContext {
@@ -16,6 +17,7 @@ export interface AgentContext {
   systemPrompt?: string
   initialMessages?: Array<{ role: 'user' | 'assistant'; content: any }>
   sessionManager?: SessionManager
+  hooks?: HookManager
 }
 
 interface Message {
@@ -30,6 +32,9 @@ export class AgentLoop {
 
   async run(userMessage: string): Promise<string> {
     const metrics = getMetrics()
+    const hookEnv = { AGENT_CWD: process.cwd() }
+
+    await this.context.hooks?.fire('session-start', hookEnv)
 
     // Seed with history if resuming a session
     this._messages = [...(this.context.initialMessages ?? [])]
@@ -69,8 +74,11 @@ export class AgentLoop {
           await this.maybeCompress(messages, response.inputTokens)
 
           if (response.type === 'text') {
-            process.stderr.write('\n' + (response.content ?? '') + '\n')
-            finalText = response.content ?? ''
+            let text = response.content ?? ''
+            const sampled = await this.context.hooks?.transform('post-sampling', { text }, hookEnv)
+            if (sampled) text = sampled.text
+            process.stderr.write('\n' + text + '\n')
+            finalText = text
             const assistantContent = response.rawContent ?? [{ type: 'text', text: finalText }]
             messages.push({ role: 'assistant', content: assistantContent })
             await this.saveMessage('assistant', assistantContent)
@@ -103,6 +111,8 @@ export class AgentLoop {
     } catch (error: any) {
       this.context.logger.error('Agent loop failed', { error: error.message })
       throw error
+    } finally {
+      await this.context.hooks?.fire('session-end', hookEnv)
     }
 
     return finalText
@@ -235,6 +245,9 @@ export class AgentLoop {
 
         // Pure text response — save assistant message
         if (fullText) {
+          const hookEnv = { AGENT_CWD: process.cwd() }
+          const sampled = await this.context.hooks?.transform('post-sampling', { text: fullText }, hookEnv)
+          if (sampled?.text) fullText = sampled.text
           messages.push({ role: 'assistant', content: [{ type: 'text', text: fullText }] })
           await this.saveMessage('assistant', [{ type: 'text', text: fullText }])
         }
