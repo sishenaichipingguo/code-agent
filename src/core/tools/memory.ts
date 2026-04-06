@@ -43,8 +43,8 @@ export class MemoryLoadTool implements Tool {
   description = 'Load memory index'
   inputSchema = { type: 'object', properties: {} }
 
-  isConcurrencySafe = () => false
-  isReadOnly = () => false
+  isConcurrencySafe = () => true
+  isReadOnly = () => true
   isDestructive = () => false
   checkPermissions = () => ({ type: 'allow' as const })
   preparePermissionMatcher = () => null

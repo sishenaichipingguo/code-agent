@@ -2,6 +2,7 @@ import { execSync } from 'child_process'
 import { platform } from 'os'
 import { loadClaudeMd } from './claude-md'
 import type { MemoryManager } from '@/core/memory/manager'
+import { truncateMemoryIndex } from '@/core/memory/limits'
 
 export class SystemPromptBuilder {
   constructor(
@@ -86,11 +87,10 @@ export class SystemPromptBuilder {
   private buildMemory(): string {
     if (!this.memoryManager) return ''
     try {
-      const index = this.memoryManager.loadIndex().trim()
-      // Only inject if there's actual content beyond the template headers
-      const hasEntries = /^- \[/m.test(index)
+      const raw = this.memoryManager.loadIndex().trim()
+      const hasEntries = /^- \[/m.test(raw)
       if (!hasEntries) return ''
-      return `## Memory\n${index}`
+      return `## Memory\n${truncateMemoryIndex(raw)}`
     } catch {
       return ''
     }
