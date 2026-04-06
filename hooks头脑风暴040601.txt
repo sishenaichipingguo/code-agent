@@ -1,0 +1,1999 @@
+
+> /superpowers:brainstorm   6. Hooks 系统 — 缺失
+
+  你的代码：无 hooks。
+
+  Claude Code 有：PreCompact hooks、PostSampling hooks、settings change hooks，让用户自定义 agent 行为，不需要修改源码。
+
+  ---这个你提一些建议呢
+
+● /superpowers:brainstorm 已废弃，即将在下个主版本中移除。
+
+  请改用 superpowers brainstorming skill，方式是直接告诉我你想做什么，我会自动调用它。比如：
+
+  ▎ "帮我为 Hooks 系统做一些设计建议"
+
+● Skill(superpowers:brainstorming)
+  ⎿  Successfully loaded skill
+
+  Searched for 1 pattern, read 5 files (ctrl+o to expand)
+
+● 好，项目上下文清楚了。现在开始澄清阶段。
+
+  ---
+  首先一个核心问题：Hooks 的主要目标是什么？
+
+  - A. 纯观察 (Observability) — 日志、监控、通知，Hook 不影响 agent 行为
+  - B. 行为拦截 (Interception) — Hook 可以修改工具输入/输出，甚至阻止工具执行
+  - C. 两者都要 — 既能观察，也能干预
+
+  这个选择决定了架构的基础方向（Observer 模式 vs Interceptor 链）。
+
+✻ Cooked for 1m 32s
+
+> 你觉得哪个好呢
+
+● 推荐 C（两者都要），理由如下：
+
+  纯观察（A）
+  太受限——用户最常见的需求恰恰是"在工具执行前注入额外信息"或"执行后自动记录到外部系统"，这些都需要某种程度的干预。
+
+  纯拦截（B） 过于复杂且危险——如果每个 hook 都能修改行为，实现成本高，用户也容易把 agent 搞坏。
+
+  两者都要（C） 但要有清晰分层：
+
+  ┌─────────────┬───────────────────────────────┬──────────────────────────────────────────────┐
+  │  Hook 类型  │             能力              │                   对应场景                   │
+  ├─────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+  │ 通知型 Hook │ 只读，fire-and-forget，不阻塞 │ 日志、Slack 通知、metrics 上报               │
+  ├─────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+  │ 变换型 Hook │ 可修改数据，可阻止执行        │ PreCompact 修改摘要策略、pre-tool 注入上下文 │
+  └─────────────┴───────────────────────────────┴──────────────────────────────────────────────┘
+
+  变换型 Hook 只在少数几个关键点开放（不是每个事件都能干预），这样复杂度可控。
+
+  对应到这个项目最有价值的 hook 点：
+  - pre-tool / post-tool — 工具执行前后
+  - pre-compress / post-compress — 压缩前后（对应 Claude Code 的 PreCompact）
+  - post-sampling — 模型返回后
+  - session-start / session-end — 会话生命周期
+
+  ---
+  下一个问题：Hook 的执行方式偏向哪种？
+
+  - A. Shell 命令 — 在 .agent.yml 里配置命令字符串，通过环境变量传递上下文，agent 等待命令退出（类似 Claude Code 的实现）
+  - B. TypeScript 插件 — 用户写 .ts 文件，agent import 并调用，类型安全但需要编译环境
+  - C. 两者都支持 — shell 命令作为基础，同时支持 JS/TS 模块
+
+✻ Worked for 31s
+
+> 你推荐哪个呢
+
+● 推荐 A（Shell 命令），理由：
+
+  为什么不选 B/C：
+  - TypeScript 插件需要用户懂这个项目的内部类型，门槛高
+  - "两者都支持"= 维护两套接口，现在没必要
+  - 你提到 Claude Code 作为参照，它就是 shell 命令方案
+
+  Shell 命令的优势恰好适合这个项目：
+  - 语言无关——用户可以用 bash、Python、任何东西写 hook
+  - 配置在 .agent.yml 里，和现有风格一致
+  - 项目已经有 BashTool 和 executeWithTimeout，spawn 子进程的基础设施都有
+  - 通知型 hook：命令退出就完事，不需要返回值
+  - 变换型 hook：通过 stdout 返回 JSON，agent 读取并应用
+
+  数据传递方案：
+  - 通知型 → 环境变量（AGENT_TOOL_NAME, AGENT_EVENT, 等）
+  - 变换型 → 环境变量 + stdin 传 JSON payload，stdout 接收修改后的数据
+
+  配置大概长这样：
+  hooks:
+    post-tool:
+      - command: "python scripts/log_tool.py"   # 通知型，fire-and-forget
+    pre-compress:
+      - command: "bash hooks/notify_compress.sh" # 通知型
+    post-sampling:
+      - command: "node hooks/filter_output.js"   # 变换型，读 stdout
+
+  ---
+  再问最后一个细节：变换型 Hook 执行失败时（命令报错/超时），agent 应该怎么处理？
+
+  - A. 报错并中止当前操作 — 严格模式，hook 失败 = 操作取消
+  - B. 记录警告并继续 — 宽容模式，hook 只是附加能力，不应阻断主流程
+  - C. 可配置 — 每个 hook 可以声明 on_error: abort | warn | ignore
+
+  8 tasks (1 done, 1 in progress, 6 open)
+  √ Explore project context
+  □ Write design doc
+  ■ Ask clarifying questions
+  □ User reviews spec
+  □ Transition to implementation plan
+  □ Propose 2-3 approaches
+  □ Present design
+  □ Spec self-review
+
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+> 
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ bypass permissions on (meta+m to cycle) · ctrl+t to hide tasks
+ ▐▛███▜▌   Claude Code v2.1.83
+▝▜█████▛▘  Sonnet 4.6 · API Usage Billing
+  ▘▘ ▝▝    F:\workspace\code-agent
+
+> /superpowers:brainstorm   6. Hooks 系统 — 缺失
+
+  你的代码：无 hooks。
+
+  Claude Code 有：PreCompact hooks、PostSampling hooks、settings change hooks，让用户自定义 agent 行为，不需要修改源码。
+
+  ---这个你提一些建议呢
+
+● /superpowers:brainstorm 已废弃，即将在下个主版本中移除。
+
+  请改用 superpowers brainstorming skill，方式是直接告诉我你想做什么，我会自动调用它。比如：
+
+  ▎ "帮我为 Hooks 系统做一些设计建议"
+
+● Skill(superpowers:brainstorming)
+  ⎿  Successfully loaded skill
+
+  Searched for 1 pattern, read 5 files (ctrl+o to expand)
+
+● 好，项目上下文清楚了。现在开始澄清阶段。
+
+  ---
+  首先一个核心问题：Hooks 的主要目标是什么？
+
+  - A. 纯观察 (Observability) — 日志、监控、通知，Hook 不影响 agent 行为
+  - B. 行为拦截 (Interception) — Hook 可以修改工具输入/输出，甚至阻止工具执行
+  - C. 两者都要 — 既能观察，也能干预
+
+  这个选择决定了架构的基础方向（Observer 模式 vs Interceptor 链）。
+
+✻ Cooked for 1m 32s
+
+> 你觉得哪个好呢
+
+● 推荐 C（两者都要），理由如下：
+
+  纯观察（A） 太受限——用户最常见的需求恰恰是"在工具执行前注入额外信息"或"执行后自动记录到外部系统"，这些都需要某种程度的干预。
+
+  纯拦截（B） 过于复杂且危险——如果每个 hook 都能修改行为，实现成本高，用户也容易把 agent 搞坏。
+
+  两者都要（C） 但要有清晰分层：
+
+  ┌─────────────┬───────────────────────────────┬──────────────────────────────────────────────┐
+  │  Hook 类型  │             能力              │                   对应场景                   │
+  ├─────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+  │ 通知型 Hook │ 只读，fire-and-forget，不阻塞 │ 日志、Slack 通知、metrics 上报               │
+  ├─────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+  │ 变换型 Hook │ 可修改数据，可阻止执行        │ PreCompact 修改摘要策略、pre-tool 注入上下文 │
+  └─────────────┴───────────────────────────────┴──────────────────────────────────────────────┘
+
+  变换型 Hook 只在少数几个关键点开放（不是每个事件都能干预），这样复杂度可控。
+
+  对应到这个项目最有价值的 hook 点：
+  - pre-tool / post-tool — 工具执行前后
+  - pre-compress / post-compress — 压缩前后（对应 Claude Code 的 PreCompact）
+  - post-sampling — 模型返回后
+  - session-start / session-end — 会话生命周期
+
+  ---
+  下一个问题：Hook 的执行方式偏向哪种？
+
+  - A. Shell 命令 — 在 .agent.yml 里配置命令字符串，通过环境变量传递上下文，agent 等待命令退出（类似 Claude Code 的实现）
+  - B. TypeScript 插件 — 用户写 .ts 文件，agent import 并调用，类型安全但需要编译环境
+  - C. 两者都支持 — shell 命令作为基础，同时支持 JS/TS 模块
+
+✻ Worked for 31s
+
+> 你推荐哪个呢
+
+● 推荐 A（Shell 命令），理由：
+
+  为什么不选 B/C：
+  - TypeScript 插件需要用户懂这个项目的内部类型，门槛高
+  - "两者都支持"= 维护两套接口，现在没必要
+  - 你提到 Claude Code 作为参照，它就是 shell 命令方案
+
+  Shell 命令的优势恰好适合这个项目：
+  - 语言无关——用户可以用 bash、Python、任何东西写 hook
+  - 配置在 .agent.yml 里，和现有风格一致
+  - 项目已经有 BashTool 和 executeWithTimeout，spawn 子进程的基础设施都有
+  - 通知型 hook：命令退出就完事，不需要返回值
+  - 变换型 hook：通过 stdout 返回 JSON，agent 读取并应用
+
+  数据传递方案：
+  - 通知型 → 环境变量（AGENT_TOOL_NAME, AGENT_EVENT, 等）
+  - 变换型 → 环境变量 + stdin 传 JSON payload，stdout 接收修改后的数据
+
+  配置大概长这样：
+  hooks:
+    post-tool:
+      - command: "python scripts/log_tool.py"   # 通知型，fire-and-forget
+    pre-compress:
+      - command: "bash hooks/notify_compress.sh" # 通知型
+    post-sampling:
+      - command: "node hooks/filter_output.js"   # 变换型，读 stdout
+
+  ---
+  再问最后一个细节：变换型 Hook 执行失败时（命令报错/超时），agent 应该怎么处理？
+
+  - A. 报错并中止当前操作 — 严格模式，hook 失败 = 操作取消
+  - B. 记录警告并继续 — 宽容模式，hook 只是附加能力，不应阻断主流程
+  - C. 可配置 — 每个 hook 可以声明 on_error: abort | warn | ignore
+
+  8 tasks (1 done, 1 in progress, 6 open)
+  √ Explore project context
+  □ Write design doc
+  ■ Ask clarifying questions
+  □ User reviews spec
+  □ Transition to implementation plan
+  □ Propose 2-3 approaches
+  □ Present design
+  □ Spec self-review
+
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+> 
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ bypass permissions on (meta+m to cycle) · ctrl+t to hide tasks
+ ▐▛███▜▌   Claude Code v2.1.83
+▝▜█████▛▘  Sonnet 4.6 · API Usage Billing
+  ▘▘ ▝▝    F:\workspace\code-agent
+
+> /superpowers:brainstorm   6. Hooks 系统 — 缺失
+
+  你的代码：无 hooks。
+
+  Claude Code 有：PreCompact hooks、PostSampling hooks、settings change hooks，让用户自定义 agent 行为，不需要修改源码。
+
+  ---这个你提一些建议呢
+
+● /superpowers:brainstorm 已废弃，即将在下个主版本中移除。
+
+  请改用 superpowers brainstorming skill，方式是直接告诉我你想做什么，我会自动调用它。比如：
+
+  ▎ "帮我为 Hooks 系统做一些设计建议"
+
+● Skill(superpowers:brainstorming)
+  ⎿  Successfully loaded skill
+
+  Searched for 1 pattern, read 5 files (ctrl+o to expand)
+
+● 好，项目上下文清楚了。现在开始澄清阶段。
+
+  ---
+  首先一个核心问题：Hooks 的主要目标是什么？
+
+  - A. 纯观察 (Observability) — 日志、监控、通知，Hook 不影响 agent 行为
+  - B. 行为拦截 (Interception) — Hook 可以修改工具输入/输出，甚至阻止工具执行
+  - C. 两者都要 — 既能观察，也能干预
+
+  这个选择决定了架构的基础方向（Observer 模式 vs Interceptor 链）。
+
+✻ Cooked for 1m 32s
+
+> 你觉得哪个好呢
+
+● 推荐 C（两者都要），理由如下：
+
+  纯观察（A） 太受限——用户最常见的需求恰恰是"在工具执行前注入额外信息"或"执行后自动记录到外部系统"，这些都需要某种程度的干预。
+
+  纯拦截（B） 过于复杂且危险——如果每个 hook 都能修改行为，实现成本高，用户也容易把 agent 搞坏。
+
+  两者都要（C） 但要有清晰分层：
+
+  ┌─────────────┬───────────────────────────────┬──────────────────────────────────────────────┐
+  │  Hook 类型  │             能力              │                   对应场景                   │
+  ├─────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+  │ 通知型 Hook │ 只读，fire-and-forget，不阻塞 │ 日志、Slack 通知、metrics 上报               │
+  ├─────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+  │ 变换型 Hook │ 可修改数据，可阻止执行        │ PreCompact 修改摘要策略、pre-tool 注入上下文 │
+  └─────────────┴───────────────────────────────┴──────────────────────────────────────────────┘
+
+  变换型 Hook 只在少数几个关键点开放（不是每个事件都能干预），这样复杂度可控。
+
+  对应到这个项目最有价值的 hook 点：
+  - pre-tool / post-tool — 工具执行前后
+  - pre-compress / post-compress — 压缩前后（对应 Claude Code 的 PreCompact）
+  - post-sampling — 模型返回后
+  - session-start / session-end — 会话生命周期
+
+  ---
+  下一个问题：Hook 的执行方式偏向哪种？
+
+  - A. Shell 命令 — 在 .agent.yml 里配置命令字符串，通过环境变量传递上下文，agent 等待命令退出（类似 Claude Code 的实现）
+  - B. TypeScript 插件 — 用户写 .ts 文件，agent import 并调用，类型安全但需要编译环境
+  - C. 两者都支持 — shell 命令作为基础，同时支持 JS/TS 模块
+
+✻ Worked for 31s
+
+> 你推荐哪个呢
+
+● 推荐 A（Shell 命令），理由：
+
+  为什么不选 B/C：
+  - TypeScript 插件需要用户懂这个项目的内部类型，门槛高
+  - "两者都支持"= 维护两套接口，现在没必要
+  - 你提到 Claude Code 作为参照，它就是 shell 命令方案
+
+  Shell 命令的优势恰好适合这个项目：
+  - 语言无关——用户可以用 bash、Python、任何东西写 hook
+  - 配置在 .agent.yml 里，和现有风格一致
+  - 项目已经有 BashTool 和 executeWithTimeout，spawn 子进程的基础设施都有
+  - 通知型 hook：命令退出就完事，不需要返回值
+  - 变换型 hook：通过 stdout 返回 JSON，agent 读取并应用
+
+  数据传递方案：
+  - 通知型 → 环境变量（AGENT_TOOL_NAME, AGENT_EVENT, 等）
+  - 变换型 → 环境变量 + stdin 传 JSON payload，stdout 接收修改后的数据
+
+  配置大概长这样：
+  hooks:
+    post-tool:
+      - command: "python scripts/log_tool.py"   # 通知型，fire-and-forget
+    pre-compress:
+      - command: "bash hooks/notify_compress.sh" # 通知型
+    post-sampling:
+      - command: "node hooks/filter_output.js"   # 变换型，读 stdout
+
+  ---
+  再问最后一个细节：变换型 Hook 执行失败时（命令报错/超时），agent 应该怎么处理？
+
+  - A. 报错并中止当前操作 — 严格模式，hook 失败 = 操作取消
+  - B. 记录警告并继续 — 宽容模式，hook 只是附加能力，不应阻断主流程
+  - C. 可配置 — 每个 hook 可以声明 on_error: abort | warn | ignore
+
+  8 tasks (1 done, 1 in progress, 6 open)
+  √ Explore project context
+  □ Write design doc
+  ■ Ask clarifying questions
+  □ User reviews spec
+  □ Transition to implementation plan
+  □ Propose 2-3 approaches
+  □ Present design
+  □ Spec self-review
+
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+> 
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ bypass permissions on (meta+m to cycle) · ctrl+t to hide tasks
+ ▐▛███▜▌   Claude Code v2.1.83
+▝▜█████▛▘  Sonnet 4.6 · API Usage Billing
+  ▘▘ ▝▝    F:\workspace\code-agent
+
+> /superpowers:brainstorm   6. Hooks 系统 — 缺失
+
+  你的代码：无 hooks。
+
+  Claude Code 有：PreCompact hooks、PostSampling hooks、settings change hooks，让用户自定义 agent 行为，不需要修改源码。
+
+  ---这个你提一些建议呢
+
+● /superpowers:brainstorm 已废弃，即将在下个主版本中移除。
+
+  请改用 superpowers brainstorming skill，方式是直接告诉我你想做什么，我会自动调用它。比如：
+
+  ▎ "帮我为 Hooks 系统做一些设计建议"
+
+● Skill(superpowers:brainstorming)
+  ⎿  Successfully loaded skill
+
+  Searched for 1 pattern, read 5 files (ctrl+o to expand)
+
+● 好，项目上下文清楚了。现在开始澄清阶段。
+
+  ---
+  首先一个核心问题：Hooks 的主要目标是什么？
+
+  - A. 纯观察 (Observability) — 日志、监控、通知，Hook 不影响 agent 行为
+  - B. 行为拦截 (Interception) — Hook 可以修改工具输入/输出，甚至阻止工具执行
+  - C. 两者都要 — 既能观察，也能干预
+
+  这个选择决定了架构的基础方向（Observer 模式 vs Interceptor 链）。
+
+✻ Cooked for 1m 32s
+
+> 你觉得哪个好呢
+
+● 推荐 C（两者都要），理由如下：
+
+  纯观察（A） 太受限——用户最常见的需求恰恰是"在工具执行前注入额外信息"或"执行后自动记录到外部系统"，这些都需要某种程度的干预。
+
+  纯拦截（B） 过于复杂且危险——如果每个 hook 都能修改行为，实现成本高，用户也容易把 agent 搞坏。
+
+  两者都要（C） 但要有清晰分层：
+
+  ┌─────────────┬───────────────────────────────┬──────────────────────────────────────────────┐
+  │  Hook 类型  │             能力              │                   对应场景                   │
+  ├─────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+  │ 通知型 Hook │ 只读，fire-and-forget，不阻塞 │ 日志、Slack 通知、metrics 上报               │
+  ├─────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+  │ 变换型 Hook │ 可修改数据，可阻止执行        │ PreCompact 修改摘要策略、pre-tool 注入上下文 │
+  └─────────────┴───────────────────────────────┴──────────────────────────────────────────────┘
+
+  变换型 Hook 只在少数几个关键点开放（不是每个事件都能干预），这样复杂度可控。
+
+  对应到这个项目最有价值的 hook 点：
+  - pre-tool / post-tool — 工具执行前后
+  - pre-compress / post-compress — 压缩前后（对应 Claude Code 的 PreCompact）
+  - post-sampling — 模型返回后
+  - session-start / session-end — 会话生命周期
+
+  ---
+  下一个问题：Hook 的执行方式偏向哪种？
+
+  - A. Shell 命令 — 在 .agent.yml 里配置命令字符串，通过环境变量传递上下文，agent 等待命令退出（类似 Claude Code 的实现）
+  - B. TypeScript 插件 — 用户写 .ts 文件，agent import 并调用，类型安全但需要编译环境
+  - C. 两者都支持 — shell 命令作为基础，同时支持 JS/TS 模块
+
+✻ Worked for 31s
+
+> 你推荐哪个呢
+
+● 推荐 A（Shell 命令），理由：
+
+  为什么不选 B/C：
+  - TypeScript 插件需要用户懂这个项目的内部类型，门槛高
+  - "两者都支持"= 维护两套接口，现在没必要
+  - 你提到 Claude Code 作为参照，它就是 shell 命令方案
+
+  Shell 命令的优势恰好适合这个项目：
+  - 语言无关——用户可以用 bash、Python、任何东西写 hook
+  - 配置在 .agent.yml 里，和现有风格一致
+  - 项目已经有 BashTool 和 executeWithTimeout，spawn 子进程的基础设施都有
+  - 通知型 hook：命令退出就完事，不需要返回值
+  - 变换型 hook：通过 stdout 返回 JSON，agent 读取并应用
+
+  数据传递方案：
+  - 通知型 → 环境变量（AGENT_TOOL_NAME, AGENT_EVENT, 等）
+  - 变换型 → 环境变量 + stdin 传 JSON payload，stdout 接收修改后的数据
+
+  配置大概长这样：
+  hooks:
+    post-tool:
+      - command: "python scripts/log_tool.py"   # 通知型，fire-and-forget
+    pre-compress:
+      - command: "bash hooks/notify_compress.sh" # 通知型
+    post-sampling:
+      - command: "node hooks/filter_output.js"   # 变换型，读 stdout
+
+  ---
+  再问最后一个细节：变换型 Hook 执行失败时（命令报错/超时），agent 应该怎么处理？
+
+  - A. 报错并中止当前操作 — 严格模式，hook 失败 = 操作取消
+  - B. 记录警告并继续 — 宽容模式，hook 只是附加能力，不应阻断主流程
+  - C. 可配置 — 每个 hook 可以声明 on_error: abort | warn | ignore
+
+  8 tasks (1 done, 1 in progress, 6 open)
+  √ Explore project context
+  □ Write design doc
+  ■ Ask clarifying questions
+  □ User reviews spec
+  □ Transition to implementation plan
+  □ Propose 2-3 approaches
+  □ Present design
+  □ Spec self-review
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+> 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ bypass permissions on (meta+m to cycle) · ctrl+t to hide tasks
+ ▐▛███▜▌   Claude Code v2.1.83
+▝▜█████▛▘  Sonnet 4.6 · API Usage Billing
+  ▘▘ ▝▝    F:\workspace\code-agent
+
+> /superpowers:brainstorm   6. Hooks 系统 — 缺失
+
+  你的代码：无 hooks。
+
+  Claude Code 有：PreCompact hooks、PostSampling hooks、settings change hooks，让用户自定义 agent 行为，不需要修改源码。
+
+  ---这个你提一些建议呢
+
+● /superpowers:brainstorm 已废弃，即将在下个主版本中移除。
+
+  请改用 superpowers brainstorming skill，方式是直接告诉我你想做什么，我会自动调用它。比如：
+
+  ▎ "帮我为 Hooks 系统做一些设计建议"
+
+● Skill(superpowers:brainstorming)
+  ⎿  Successfully loaded skill
+
+  Searched for 1 pattern, read 5 files (ctrl+o to expand)
+
+● 好，项目上下文清楚了。现在开始澄清阶段。
+
+  ---
+  首先一个核心问题：Hooks 的主要目标是什么？
+
+  - A. 纯观察 (Observability) — 日志、监控、通知，Hook 不影响 agent 行为
+  - B. 行为拦截 (Interception) — Hook 可以修改工具输入/输出，甚至阻止工具执行
+  - C. 两者都要 — 既能观察，也能干预
+
+  这个选择决定了架构的基础方向（Observer 模式 vs Interceptor 链）。
+
+✻ Cooked for 1m 32s
+
+> 你觉得哪个好呢
+
+● 推荐 C（两者都要），理由如下：
+
+  纯观察（A） 太受限——用户最常见的需求恰恰是"在工具执行前注入额外信息"或"执行后自动记录到外部系统"，这些都需要某种程度的干预。
+
+  纯拦截（B） 过于复杂且危险——如果每个 hook 都能修改行为，实现成本高，用户也容易把 agent 搞坏。
+
+  两者都要（C） 但要有清晰分层：
+
+  ┌─────────────┬───────────────────────────────┬──────────────────────────────────────────────┐
+  │  Hook 类型  │             能力              │                   对应场景                   │
+  ├─────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+  │ 通知型 Hook │ 只读，fire-and-forget，不阻塞 │ 日志、Slack 通知、metrics 上报               │
+  ├─────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+  │ 变换型 Hook │ 可修改数据，可阻止执行        │ PreCompact 修改摘要策略、pre-tool 注入上下文 │
+  └─────────────┴───────────────────────────────┴──────────────────────────────────────────────┘
+
+  变换型 Hook 只在少数几个关键点开放（不是每个事件都能干预），这样复杂度可控。
+
+  对应到这个项目最有价值的 hook 点：
+  - pre-tool / post-tool — 工具执行前后
+  - pre-compress / post-compress — 压缩前后（对应 Claude Code 的 PreCompact）
+  - post-sampling — 模型返回后
+  - session-start / session-end — 会话生命周期
+
+  ---
+  下一个问题：Hook 的执行方式偏向哪种？
+
+  - A. Shell 命令 — 在 .agent.yml 里配置命令字符串，通过环境变量传递上下文，agent 等待命令退出（类似 Claude Code 的实现）
+  - B. TypeScript 插件 — 用户写 .ts 文件，agent import 并调用，类型安全但需要编译环境
+  - C. 两者都支持 — shell 命令作为基础，同时支持 JS/TS 模块
+
+✻ Worked for 31s
+
+> 你推荐哪个呢
+
+● 推荐 A（Shell 命令），理由：
+
+  为什么不选 B/C：
+  - TypeScript 插件需要用户懂这个项目的内部类型，门槛高
+  - "两者都支持"= 维护两套接口，现在没必要
+  - 你提到 Claude Code 作为参照，它就是 shell 命令方案
+
+  Shell 命令的优势恰好适合这个项目：
+  - 语言无关——用户可以用 bash、Python、任何东西写 hook
+  - 配置在 .agent.yml 里，和现有风格一致
+  - 项目已经有 BashTool 和 executeWithTimeout，spawn 子进程的基础设施都有
+  - 通知型 hook：命令退出就完事，不需要返回值
+  - 变换型 hook：通过 stdout 返回 JSON，agent 读取并应用
+
+  数据传递方案：
+  - 通知型 → 环境变量（AGENT_TOOL_NAME, AGENT_EVENT, 等）
+  - 变换型 → 环境变量 + stdin 传 JSON payload，stdout 接收修改后的数据
+
+  配置大概长这样：
+  hooks:
+    post-tool:
+      - command: "python scripts/log_tool.py"   # 通知型，fire-and-forget
+    pre-compress:
+      - command: "bash hooks/notify_compress.sh" # 通知型
+    post-sampling:
+      - command: "node hooks/filter_output.js"   # 变换型，读 stdout
+
+  ---
+  再问最后一个细节：变换型 Hook 执行失败时（命令报错/超时），agent 应该怎么处理？
+
+  - A. 报错并中止当前操作 — 严格模式，hook 失败 = 操作取消
+  - B. 记录警告并继续 — 宽容模式，hook 只是附加能力，不应阻断主流程
+  - C. 可配置 — 每个 hook 可以声明 on_error: abort | warn | ignore
+
+  8 tasks (1 done, 1 in progress, 6 open)
+  √ Explore project context
+  □ Write design doc
+  ■ Ask clarifying questions
+  □ User reviews spec
+  □ Transition to implementation plan
+  □ Propose 2-3 approaches
+  □ Present design
+  □ Spec self-review
+
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+> 
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ bypass permissions on (meta+m to cycle) · ctrl+t to hide tasks
+ ▐▛███▜▌   Claude Code v2.1.83
+▝▜█████▛▘  Sonnet 4.6 · API Usage Billing
+  ▘▘ ▝▝    F:\workspace\code-agent
+
+> /superpowers:brainstorm   6. Hooks 系统 — 缺失
+
+  你的代码：无 hooks。
+
+  Claude Code 有：PreCompact hooks、PostSampling hooks、settings change hooks，让用户自定义 agent 行为，不需要修改源码。
+
+  ---这个你提一些建议呢
+
+● /superpowers:brainstorm 已废弃，即将在下个主版本中移除。
+
+  请改用 superpowers brainstorming skill，方式是直接告诉我你想做什么，我会自动调用它。比如：
+
+  ▎ "帮我为 Hooks 系统做一些设计建议"
+
+● Skill(superpowers:brainstorming)
+  ⎿  Successfully loaded skill
+
+  Searched for 1 pattern, read 5 files (ctrl+o to expand)
+
+● 好，项目上下文清楚了。现在开始澄清阶段。
+
+  ---
+  首先一个核心问题：Hooks 的主要目标是什么？
+
+  - A. 纯观察 (Observability) — 日志、监控、通知，Hook 不影响 agent 行为
+  - B. 行为拦截 (Interception) — Hook 可以修改工具输入/输出，甚至阻止工具执行
+  - C. 两者都要 — 既能观察，也能干预
+
+  这个选择决定了架构的基础方向（Observer 模式 vs Interceptor 链）。
+
+✻ Cooked for 1m 32s
+
+> 你觉得哪个好呢
+
+● 推荐 C（两者都要），理由如下：
+
+  纯观察（A） 太受限——用户最常见的需求恰恰是"在工具执行前注入额外信息"或"执行后自动记录到外部系统"，这些都需要某种程度的干预。
+
+  纯拦截（B） 过于复杂且危险——如果每个 hook 都能修改行为，实现成本高，用户也容易把 agent 搞坏。
+
+  两者都要（C） 但要有清晰分层：
+
+  ┌─────────────┬───────────────────────────────┬──────────────────────────────────────────────┐
+  │  Hook 类型  │             能力              │                   对应场景                   │
+  ├─────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+  │ 通知型 Hook │ 只读，fire-and-forget，不阻塞 │ 日志、Slack 通知、metrics 上报               │
+  ├─────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+  │ 变换型 Hook │ 可修改数据，可阻止执行        │ PreCompact 修改摘要策略、pre-tool 注入上下文 │
+  └─────────────┴───────────────────────────────┴──────────────────────────────────────────────┘
+
+  变换型 Hook 只在少数几个关键点开放（不是每个事件都能干预），这样复杂度可控。
+
+  对应到这个项目最有价值的 hook 点：
+  - pre-tool / post-tool — 工具执行前后
+  - pre-compress / post-compress — 压缩前后（对应 Claude Code 的 PreCompact）
+  - post-sampling — 模型返回后
+  - session-start / session-end — 会话生命周期
+
+  ---
+  下一个问题：Hook 的执行方式偏向哪种？
+
+  - A. Shell 命令 — 在 .agent.yml 里配置命令字符串，通过环境变量传递上下文，agent 等待命令退出（类似 Claude Code 的实现）
+  - B. TypeScript 插件 — 用户写 .ts 文件，agent import 并调用，类型安全但需要编译环境
+  - C. 两者都支持 — shell 命令作为基础，同时支持 JS/TS 模块
+
+✻ Worked for 31s
+
+> 你推荐哪个呢
+
+● 推荐 A（Shell 命令），理由：
+
+  为什么不选 B/C：
+  - TypeScript 插件需要用户懂这个项目的内部类型，门槛高
+  - "两者都支持"= 维护两套接口，现在没必要
+  - 你提到 Claude Code 作为参照，它就是 shell 命令方案
+
+  Shell 命令的优势恰好适合这个项目：
+  - 语言无关——用户可以用 bash、Python、任何东西写 hook
+  - 配置在 .agent.yml 里，和现有风格一致
+  - 项目已经有 BashTool 和 executeWithTimeout，spawn 子进程的基础设施都有
+  - 通知型 hook：命令退出就完事，不需要返回值
+  - 变换型 hook：通过 stdout 返回 JSON，agent 读取并应用
+
+  数据传递方案：
+  - 通知型 → 环境变量（AGENT_TOOL_NAME, AGENT_EVENT, 等）
+  - 变换型 → 环境变量 + stdin 传 JSON payload，stdout 接收修改后的数据
+
+  配置大概长这样：
+  hooks:
+    post-tool:
+      - command: "python scripts/log_tool.py"   # 通知型，fire-and-forget
+    pre-compress:
+      - command: "bash hooks/notify_compress.sh" # 通知型
+    post-sampling:
+      - command: "node hooks/filter_output.js"   # 变换型，读 stdout
+
+  ---
+  再问最后一个细节：变换型 Hook 执行失败时（命令报错/超时），agent 应该怎么处理？
+
+  - A. 报错并中止当前操作 — 严格模式，hook 失败 = 操作取消
+  - B. 记录警告并继续 — 宽容模式，hook 只是附加能力，不应阻断主流程
+  - C. 可配置 — 每个 hook 可以声明 on_error: abort | warn | ignore
+
+  8 tasks (1 done, 1 in progress, 6 open)
+  √ Explore project context
+  □ Write design doc
+  ■ Ask clarifying questions
+  □ User reviews spec
+  □ Transition to implementation plan
+  □ Propose 2-3 approaches
+  □ Present design
+  □ Spec self-review
+
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+> 
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ bypass permissions on (meta+m to cycle) · ctrl+t to hide tasks
+ ▐▛███▜▌   Claude Code v2.1.83
+▝▜█████▛▘  Sonnet 4.6 · API Usage Billing
+  ▘▘ ▝▝    F:\workspace\code-agent
+
+> /superpowers:brainstorm   6. Hooks 系统 — 缺失
+
+  你的代码：无 hooks。
+
+  Claude Code 有：PreCompact hooks、PostSampling hooks、settings change hooks，让用户自定义 agent 行为，不需要修改源码。
+
+  ---这个你提一些建议呢
+
+● /superpowers:brainstorm 已废弃，即将在下个主版本中移除。
+
+  请改用 superpowers brainstorming skill，方式是直接告诉我你想做什么，我会自动调用它。比如：
+
+  ▎ "帮我为 Hooks 系统做一些设计建议"
+
+● Skill(superpowers:brainstorming)
+  ⎿  Successfully loaded skill
+
+  Searched for 1 pattern, read 5 files (ctrl+o to expand)
+
+● 好，项目上下文清楚了。现在开始澄清阶段。
+
+  ---
+  首先一个核心问题：Hooks 的主要目标是什么？
+
+  - A. 纯观察 (Observability) — 日志、监控、通知，Hook 不影响 agent 行为
+  - B. 行为拦截 (Interception) — Hook 可以修改工具输入/输出，甚至阻止工具执行
+  - C. 两者都要 — 既能观察，也能干预
+
+  这个选择决定了架构的基础方向（Observer 模式 vs Interceptor 链）。
+
+✻ Cooked for 1m 32s
+
+> 你觉得哪个好呢
+
+● 推荐 C（两者都要），理由如下：
+
+  纯观察（A） 太受限——用户最常见的需求恰恰是"在工具执行前注入额外信息"或"执行后自动记录到外部系统"，这些都需要某种程度的干预。
+
+  纯拦截（B） 过于复杂且危险——如果每个 hook 都能修改行为，实现成本高，用户也容易把 agent 搞坏。
+
+  两者都要（C） 但要有清晰分层：
+
+  ┌─────────────┬───────────────────────────────┬──────────────────────────────────────────────┐
+  │  Hook 类型  │             能力              │                   对应场景                   │
+  ├─────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+  │ 通知型 Hook │ 只读，fire-and-forget，不阻塞 │ 日志、Slack 通知、metrics 上报               │
+  ├─────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+  │ 变换型 Hook │ 可修改数据，可阻止执行        │ PreCompact 修改摘要策略、pre-tool 注入上下文 │
+  └─────────────┴───────────────────────────────┴──────────────────────────────────────────────┘
+
+  变换型 Hook 只在少数几个关键点开放（不是每个事件都能干预），这样复杂度可控。
+
+  对应到这个项目最有价值的 hook 点：
+  - pre-tool / post-tool — 工具执行前后
+  - pre-compress / post-compress — 压缩前后（对应 Claude Code 的 PreCompact）
+  - post-sampling — 模型返回后
+  - session-start / session-end — 会话生命周期
+
+  ---
+  下一个问题：Hook 的执行方式偏向哪种？
+
+  - A. Shell 命令 — 在 .agent.yml 里配置命令字符串，通过环境变量传递上下文，agent 等待命令退出（类似 Claude Code 的实现）
+  - B. TypeScript 插件 — 用户写 .ts 文件，agent import 并调用，类型安全但需要编译环境
+  - C. 两者都支持 — shell 命令作为基础，同时支持 JS/TS 模块
+
+✻ Worked for 31s
+
+> 你推荐哪个呢
+
+● 推荐 A（Shell 命令），理由：
+
+  为什么不选 B/C：
+  - TypeScript 插件需要用户懂这个项目的内部类型，门槛高
+  - "两者都支持"= 维护两套接口，现在没必要
+  - 你提到 Claude Code 作为参照，它就是 shell 命令方案
+
+  Shell 命令的优势恰好适合这个项目：
+  - 语言无关——用户可以用 bash、Python、任何东西写 hook
+  - 配置在 .agent.yml 里，和现有风格一致
+  - 项目已经有 BashTool 和 executeWithTimeout，spawn 子进程的基础设施都有
+  - 通知型 hook：命令退出就完事，不需要返回值
+  - 变换型 hook：通过 stdout 返回 JSON，agent 读取并应用
+
+  数据传递方案：
+  - 通知型 → 环境变量（AGENT_TOOL_NAME, AGENT_EVENT, 等）
+  - 变换型 → 环境变量 + stdin 传 JSON payload，stdout 接收修改后的数据
+
+  配置大概长这样：
+  hooks:
+    post-tool:
+      - command: "python scripts/log_tool.py"   # 通知型，fire-and-forget
+    pre-compress:
+      - command: "bash hooks/notify_compress.sh" # 通知型
+    post-sampling:
+      - command: "node hooks/filter_output.js"   # 变换型，读 stdout
+
+  ---
+  再问最后一个细节：变换型 Hook 执行失败时（命令报错/超时），agent 应该怎么处理？
+
+  - A. 报错并中止当前操作 — 严格模式，hook 失败 = 操作取消
+  - B. 记录警告并继续 — 宽容模式，hook 只是附加能力，不应阻断主流程
+  - C. 可配置 — 每个 hook 可以声明 on_error: abort | warn | ignore
+
+  8 tasks (1 done, 1 in progress, 6 open)
+  √ Explore project context
+  □ Write design doc
+  ■ Ask clarifying questions
+  □ User reviews spec
+  □ Transition to implementation plan
+  □ Propose 2-3 approaches
+  □ Present design
+  □ Spec self-review
+
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+> 
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ bypass permissions on (meta+m to cycle) · ctrl+t to hide tasks
+ ▐▛███▜▌   Claude Code v2.1.83
+▝▜█████▛▘  Sonnet 4.6 · API Usage Billing
+  ▘▘ ▝▝    F:\workspace\code-agent
+
+> /superpowers:brainstorm   6. Hooks 系统 — 缺失
+
+  你的代码：无 hooks。
+
+  Claude Code 有：PreCompact hooks、PostSampling hooks、settings change hooks，让用户自定义 agent 行为，不需要修改源码。
+
+  ---这个你提一些建议呢
+
+● /superpowers:brainstorm 已废弃，即将在下个主版本中移除。
+
+  请改用 superpowers brainstorming skill，方式是直接告诉我你想做什么，我会自动调用它。比如：
+
+  ▎ "帮我为 Hooks 系统做一些设计建议"
+
+● Skill(superpowers:brainstorming)
+  ⎿  Successfully loaded skill
+
+  Searched for 1 pattern, read 5 files (ctrl+o to expand)
+
+● 好，项目上下文清楚了。现在开始澄清阶段。
+
+  ---
+  首先一个核心问题：Hooks 的主要目标是什么？
+
+  - A. 纯观察 (Observability) — 日志、监控、通知，Hook 不影响 agent 行为
+  - B. 行为拦截 (Interception) — Hook 可以修改工具输入/输出，甚至阻止工具执行
+  - C. 两者都要 — 既能观察，也能干预
+
+  这个选择决定了架构的基础方向（Observer 模式 vs Interceptor 链）。
+
+✻ Cooked for 1m 32s
+
+> 你觉得哪个好呢
+
+● 推荐 C（两者都要），理由如下：
+
+  纯观察（A） 太受限——用户最常见的需求恰恰是"在工具执行前注入额外信息"或"执行后自动记录到外部系统"，这些都需要某种程度的干预。
+
+  纯拦截（B） 过于复杂且危险——如果每个 hook 都能修改行为，实现成本高，用户也容易把 agent 搞坏。
+
+  两者都要（C） 但要有清晰分层：
+
+  ┌─────────────┬───────────────────────────────┬──────────────────────────────────────────────┐
+  │  Hook 类型  │             能力              │                   对应场景                   │
+  ├─────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+  │ 通知型 Hook │ 只读，fire-and-forget，不阻塞 │ 日志、Slack 通知、metrics 上报               │
+  ├─────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+  │ 变换型 Hook │ 可修改数据，可阻止执行        │ PreCompact 修改摘要策略、pre-tool 注入上下文 │
+  └─────────────┴───────────────────────────────┴──────────────────────────────────────────────┘
+
+  变换型 Hook 只在少数几个关键点开放（不是每个事件都能干预），这样复杂度可控。
+
+  对应到这个项目最有价值的 hook 点：
+  - pre-tool / post-tool — 工具执行前后
+  - pre-compress / post-compress — 压缩前后（对应 Claude Code 的 PreCompact）
+  - post-sampling — 模型返回后
+  - session-start / session-end — 会话生命周期
+
+  ---
+  下一个问题：Hook 的执行方式偏向哪种？
+
+  - A. Shell 命令 — 在 .agent.yml 里配置命令字符串，通过环境变量传递上下文，agent 等待命令退出（类似 Claude Code 的实现）
+  - B. TypeScript 插件 — 用户写 .ts 文件，agent import 并调用，类型安全但需要编译环境
+  - C. 两者都支持 — shell 命令作为基础，同时支持 JS/TS 模块
+
+✻ Worked for 31s
+
+> 你推荐哪个呢
+
+● 推荐 A（Shell 命令），理由：
+
+  为什么不选 B/C：
+  - TypeScript 插件需要用户懂这个项目的内部类型，门槛高
+  - "两者都支持"= 维护两套接口，现在没必要
+  - 你提到 Claude Code 作为参照，它就是 shell 命令方案
+
+  Shell 命令的优势恰好适合这个项目：
+  - 语言无关——用户可以用 bash、Python、任何东西写 hook
+  - 配置在 .agent.yml 里，和现有风格一致
+  - 项目已经有 BashTool 和 executeWithTimeout，spawn 子进程的基础设施都有
+  - 通知型 hook：命令退出就完事，不需要返回值
+  - 变换型 hook：通过 stdout 返回 JSON，agent 读取并应用
+
+  数据传递方案：
+  - 通知型 → 环境变量（AGENT_TOOL_NAME, AGENT_EVENT, 等）
+  - 变换型 → 环境变量 + stdin 传 JSON payload，stdout 接收修改后的数据
+
+  配置大概长这样：
+  hooks:
+    post-tool:
+      - command: "python scripts/log_tool.py"   # 通知型，fire-and-forget
+    pre-compress:
+      - command: "bash hooks/notify_compress.sh" # 通知型
+    post-sampling:
+      - command: "node hooks/filter_output.js"   # 变换型，读 stdout
+
+  ---
+  再问最后一个细节：变换型 Hook 执行失败时（命令报错/超时），agent 应该怎么处理？
+
+  - A. 报错并中止当前操作 — 严格模式，hook 失败 = 操作取消
+  - B. 记录警告并继续 — 宽容模式，hook 只是附加能力，不应阻断主流程
+  - C. 可配置 — 每个 hook 可以声明 on_error: abort | warn | ignore
+
+  8 tasks (1 done, 1 in progress, 6 open)
+  √ Explore project context
+  □ Write design doc
+  ■ Ask clarifying questions
+  □ User reviews spec
+  □ Transition to implementation plan
+  □ Propose 2-3 approaches
+  □ Present design
+  □ Spec self-review
+
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+> 
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ bypass permissions on (meta+m to cycle) · ctrl+t to hide tasks
+ ▐▛███▜▌   Claude Code v2.1.83
+▝▜█████▛▘  Sonnet 4.6 · API Usage Billing
+  ▘▘ ▝▝    F:\workspace\code-agent
+
+> /superpowers:brainstorm   6. Hooks 系统 — 缺失
+
+  你的代码：无 hooks。
+
+  Claude Code 有：PreCompact hooks、PostSampling hooks、settings change hooks，让用户自定义 agent 行为，不需要修改源码。
+
+  ---这个你提一些建议呢
+
+● /superpowers:brainstorm 已废弃，即将在下个主版本中移除。
+
+  请改用 superpowers brainstorming skill，方式是直接告诉我你想做什么，我会自动调用它。比如：
+
+  ▎ "帮我为 Hooks 系统做一些设计建议"
+
+● Skill(superpowers:brainstorming)
+  ⎿  Successfully loaded skill
+
+  Searched for 1 pattern, read 5 files (ctrl+o to expand)
+
+● 好，项目上下文清楚了。现在开始澄清阶段。
+
+  ---
+  首先一个核心问题：Hooks 的主要目标是什么？
+
+  - A. 纯观察 (Observability) — 日志、监控、通知，Hook 不影响 agent 行为
+  - B. 行为拦截 (Interception) — Hook 可以修改工具输入/输出，甚至阻止工具执行
+  - C. 两者都要 — 既能观察，也能干预
+
+  这个选择决定了架构的基础方向（Observer 模式 vs Interceptor 链）。
+
+✻ Cooked for 1m 32s
+
+> 你觉得哪个好呢
+
+● 推荐 C（两者都要），理由如下：
+
+  纯观察（A） 太受限——用户最常见的需求恰恰是"在工具执行前注入额外信息"或"执行后自动记录到外部系统"，这些都需要某种程度的干预。
+
+  纯拦截（B） 过于复杂且危险——如果每个 hook 都能修改行为，实现成本高，用户也容易把 agent 搞坏。
+
+  两者都要（C） 但要有清晰分层：
+
+  ┌─────────────┬───────────────────────────────┬──────────────────────────────────────────────┐
+  │  Hook 类型  │             能力              │                   对应场景                   │
+  ├─────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+  │ 通知型 Hook │ 只读，fire-and-forget，不阻塞 │ 日志、Slack 通知、metrics 上报               │
+  ├─────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+  │ 变换型 Hook │ 可修改数据，可阻止执行        │ PreCompact 修改摘要策略、pre-tool 注入上下文 │
+  └─────────────┴───────────────────────────────┴──────────────────────────────────────────────┘
+
+  变换型 Hook 只在少数几个关键点开放（不是每个事件都能干预），这样复杂度可控。
+
+  对应到这个项目最有价值的 hook 点：
+  - pre-tool / post-tool — 工具执行前后
+  - pre-compress / post-compress — 压缩前后（对应 Claude Code 的 PreCompact）
+  - post-sampling — 模型返回后
+  - session-start / session-end — 会话生命周期
+
+  ---
+  下一个问题：Hook 的执行方式偏向哪种？
+
+  - A. Shell 命令 — 在 .agent.yml 里配置命令字符串，通过环境变量传递上下文，agent 等待命令退出（类似 Claude Code 的实现）
+  - B. TypeScript 插件 — 用户写 .ts 文件，agent import 并调用，类型安全但需要编译环境
+  - C. 两者都支持 — shell 命令作为基础，同时支持 JS/TS 模块
+
+✻ Worked for 31s
+
+> 你推荐哪个呢
+
+● 推荐 A（Shell 命令），理由：
+
+  为什么不选 B/C：
+  - TypeScript 插件需要用户懂这个项目的内部类型，门槛高
+  - "两者都支持"= 维护两套接口，现在没必要
+  - 你提到 Claude Code 作为参照，它就是 shell 命令方案
+
+  Shell 命令的优势恰好适合这个项目：
+  - 语言无关——用户可以用 bash、Python、任何东西写 hook
+  - 配置在 .agent.yml 里，和现有风格一致
+  - 项目已经有 BashTool 和 executeWithTimeout，spawn 子进程的基础设施都有
+  - 通知型 hook：命令退出就完事，不需要返回值
+  - 变换型 hook：通过 stdout 返回 JSON，agent 读取并应用
+
+  数据传递方案：
+  - 通知型 → 环境变量（AGENT_TOOL_NAME, AGENT_EVENT, 等）
+  - 变换型 → 环境变量 + stdin 传 JSON payload，stdout 接收修改后的数据
+
+  配置大概长这样：
+  hooks:
+    post-tool:
+      - command: "python scripts/log_tool.py"   # 通知型，fire-and-forget
+    pre-compress:
+      - command: "bash hooks/notify_compress.sh" # 通知型
+    post-sampling:
+      - command: "node hooks/filter_output.js"   # 变换型，读 stdout
+
+  ---
+  再问最后一个细节：变换型 Hook 执行失败时（命令报错/超时），agent 应该怎么处理？
+
+  - A. 报错并中止当前操作 — 严格模式，hook 失败 = 操作取消
+  - B. 记录警告并继续 — 宽容模式，hook 只是附加能力，不应阻断主流程
+  - C. 可配置 — 每个 hook 可以声明 on_error: abort | warn | ignore
+
+  8 tasks (1 done, 1 in progress, 6 open)
+  √ Explore project context
+  □ Write design doc
+  ■ Ask clarifying questions
+  □ User reviews spec
+  □ Transition to implementation plan
+  □ Propose 2-3 approaches
+  □ Present design
+  □ Spec self-review
+
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+> 
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ bypass permissions on (meta+m to cycle) · ctrl+t to hide tasks
+ ▐▛███▜▌   Claude Code v2.1.83
+▝▜█████▛▘  Sonnet 4.6 · API Usage Billing
+  ▘▘ ▝▝    F:\workspace\code-agent
+
+> /superpowers:brainstorm   6. Hooks 系统 — 缺失
+
+  你的代码：无 hooks。
+
+  Claude Code 有：PreCompact hooks、PostSampling hooks、settings change hooks，让用户自定义 agent 行为，不需要修改源码。
+
+  ---这个你提一些建议呢
+
+● /superpowers:brainstorm 已废弃，即将在下个主版本中移除。
+
+  请改用 superpowers brainstorming skill，方式是直接告诉我你想做什么，我会自动调用它。比如：
+
+  ▎ "帮我为 Hooks 系统做一些设计建议"
+
+● Skill(superpowers:brainstorming)
+  ⎿  Successfully loaded skill
+
+  Searched for 1 pattern, read 5 files (ctrl+o to expand)
+
+● 好，项目上下文清楚了。现在开始澄清阶段。
+
+  ---
+  首先一个核心问题：Hooks 的主要目标是什么？
+
+  - A. 纯观察 (Observability) — 日志、监控、通知，Hook 不影响 agent 行为
+  - B. 行为拦截 (Interception) — Hook 可以修改工具输入/输出，甚至阻止工具执行
+  - C. 两者都要 — 既能观察，也能干预
+
+  这个选择决定了架构的基础方向（Observer 模式 vs Interceptor 链）。
+
+✻ Cooked for 1m 32s
+
+> 你觉得哪个好呢
+
+● 推荐 C（两者都要），理由如下：
+
+  纯观察（A） 太受限——用户最常见的需求恰恰是"在工具执行前注入额外信息"或"执行后自动记录到外部系统"，这些都需要某种程度的干预。
+
+  纯拦截（B） 过于复杂且危险——如果每个 hook 都能修改行为，实现成本高，用户也容易把 agent 搞坏。
+
+  两者都要（C） 但要有清晰分层：
+
+  ┌─────────────┬───────────────────────────────┬──────────────────────────────────────────────┐
+  │  Hook 类型  │             能力              │                   对应场景                   │
+  ├─────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+  │ 通知型 Hook │ 只读，fire-and-forget，不阻塞 │ 日志、Slack 通知、metrics 上报               │
+  ├─────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+  │ 变换型 Hook │ 可修改数据，可阻止执行        │ PreCompact 修改摘要策略、pre-tool 注入上下文 │
+  └─────────────┴───────────────────────────────┴──────────────────────────────────────────────┘
+
+  变换型 Hook 只在少数几个关键点开放（不是每个事件都能干预），这样复杂度可控。
+
+  对应到这个项目最有价值的 hook 点：
+  - pre-tool / post-tool — 工具执行前后
+  - pre-compress / post-compress — 压缩前后（对应 Claude Code 的 PreCompact）
+  - post-sampling — 模型返回后
+  - session-start / session-end — 会话生命周期
+
+  ---
+  下一个问题：Hook 的执行方式偏向哪种？
+
+  - A. Shell 命令 — 在 .agent.yml 里配置命令字符串，通过环境变量传递上下文，agent 等待命令退出（类似 Claude Code 的实现）
+  - B. TypeScript 插件 — 用户写 .ts 文件，agent import 并调用，类型安全但需要编译环境
+  - C. 两者都支持 — shell 命令作为基础，同时支持 JS/TS 模块
+
+✻ Worked for 31s
+
+> 你推荐哪个呢
+
+● 推荐 A（Shell 命令），理由：
+
+  为什么不选 B/C：
+  - TypeScript 插件需要用户懂这个项目的内部类型，门槛高
+  - "两者都支持"= 维护两套接口，现在没必要
+  - 你提到 Claude Code 作为参照，它就是 shell 命令方案
+
+  Shell 命令的优势恰好适合这个项目：
+  - 语言无关——用户可以用 bash、Python、任何东西写 hook
+  - 配置在 .agent.yml 里，和现有风格一致
+  - 项目已经有 BashTool 和 executeWithTimeout，spawn 子进程的基础设施都有
+  - 通知型 hook：命令退出就完事，不需要返回值
+  - 变换型 hook：通过 stdout 返回 JSON，agent 读取并应用
+
+  数据传递方案：
+  - 通知型 → 环境变量（AGENT_TOOL_NAME, AGENT_EVENT, 等）
+  - 变换型 → 环境变量 + stdin 传 JSON payload，stdout 接收修改后的数据
+
+  配置大概长这样：
+  hooks:
+    post-tool:
+      - command: "python scripts/log_tool.py"   # 通知型，fire-and-forget
+    pre-compress:
+      - command: "bash hooks/notify_compress.sh" # 通知型
+    post-sampling:
+      - command: "node hooks/filter_output.js"   # 变换型，读 stdout
+
+  ---
+  再问最后一个细节：变换型 Hook 执行失败时（命令报错/超时），agent 应该怎么处理？
+
+  - A. 报错并中止当前操作 — 严格模式，hook 失败 = 操作取消
+  - B. 记录警告并继续 — 宽容模式，hook 只是附加能力，不应阻断主流程
+  - C. 可配置 — 每个 hook 可以声明 on_error: abort | warn | ignore
+
+  8 tasks (1 done, 1 in progress, 6 open)
+  √ Explore project context
+  □ Write design doc
+  ■ Ask clarifying questions
+  □ User reviews spec
+  □ Transition to implementation plan
+  □ Propose 2-3 approaches
+  □ Present design
+  □ Spec self-review
+
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+> 
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ bypass permissions on (meta+m to cycle) · ctrl+t to hide tasks
+ ▐▛███▜▌   Claude Code v2.1.83
+▝▜█████▛▘  Sonnet 4.6 · API Usage Billing
+  ▘▘ ▝▝    F:\workspace\code-agent
+
+> /superpowers:brainstorm   6. Hooks 系统 — 缺失
+
+  你的代码：无 hooks。
+
+  Claude Code 有：PreCompact hooks、PostSampling hooks、settings change hooks，让用户自定义 agent 行为，不需要修改源码。
+
+  ---这个你提一些建议呢
+
+● /superpowers:brainstorm 已废弃，即将在下个主版本中移除。
+
+  请改用 superpowers brainstorming skill，方式是直接告诉我你想做什么，我会自动调用它。比如：
+
+  ▎ "帮我为 Hooks 系统做一些设计建议"
+
+● Skill(superpowers:brainstorming)
+  ⎿  Successfully loaded skill
+
+  Searched for 1 pattern, read 5 files (ctrl+o to expand)
+
+● 好，项目上下文清楚了。现在开始澄清阶段。
+
+  ---
+  首先一个核心问题：Hooks 的主要目标是什么？
+
+  - A. 纯观察 (Observability) — 日志、监控、通知，Hook 不影响 agent 行为
+  - B. 行为拦截 (Interception) — Hook 可以修改工具输入/输出，甚至阻止工具执行
+  - C. 两者都要 — 既能观察，也能干预
+
+  这个选择决定了架构的基础方向（Observer 模式 vs Interceptor 链）。
+
+✻ Cooked for 1m 32s
+
+> 你觉得哪个好呢
+
+● 推荐 C（两者都要），理由如下：
+
+  纯观察（A） 太受限——用户最常见的需求恰恰是"在工具执行前注入额外信息"或"执行后自动记录到外部系统"，这些都需要某种程度的干预。
+
+  纯拦截（B） 过于复杂且危险——如果每个 hook 都能修改行为，实现成本高，用户也容易把 agent 搞坏。
+
+  两者都要（C） 但要有清晰分层：
+
+  ┌─────────────┬───────────────────────────────┬──────────────────────────────────────────────┐
+  │  Hook 类型  │             能力              │                   对应场景                   │
+  ├─────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+  │ 通知型 Hook │ 只读，fire-and-forget，不阻塞 │ 日志、Slack 通知、metrics 上报               │
+  ├─────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+  │ 变换型 Hook │ 可修改数据，可阻止执行        │ PreCompact 修改摘要策略、pre-tool 注入上下文 │
+  └─────────────┴───────────────────────────────┴──────────────────────────────────────────────┘
+
+  变换型 Hook 只在少数几个关键点开放（不是每个事件都能干预），这样复杂度可控。
+
+  对应到这个项目最有价值的 hook 点：
+  - pre-tool / post-tool — 工具执行前后
+  - pre-compress / post-compress — 压缩前后（对应 Claude Code 的 PreCompact）
+  - post-sampling — 模型返回后
+  - session-start / session-end — 会话生命周期
+
+  ---
+  下一个问题：Hook 的执行方式偏向哪种？
+
+  - A. Shell 命令 — 在 .agent.yml 里配置命令字符串，通过环境变量传递上下文，agent 等待命令退出（类似 Claude Code 的实现）
+  - B. TypeScript 插件 — 用户写 .ts 文件，agent import 并调用，类型安全但需要编译环境
+  - C. 两者都支持 — shell 命令作为基础，同时支持 JS/TS 模块
+
+✻ Worked for 31s
+
+> 你推荐哪个呢
+
+● 推荐 A（Shell 命令），理由：
+
+  为什么不选 B/C：
+  - TypeScript 插件需要用户懂这个项目的内部类型，门槛高
+  - "两者都支持"= 维护两套接口，现在没必要
+  - 你提到 Claude Code 作为参照，它就是 shell 命令方案
+
+  Shell 命令的优势恰好适合这个项目：
+  - 语言无关——用户可以用 bash、Python、任何东西写 hook
+  - 配置在 .agent.yml 里，和现有风格一致
+  - 项目已经有 BashTool 和 executeWithTimeout，spawn 子进程的基础设施都有
+  - 通知型 hook：命令退出就完事，不需要返回值
+  - 变换型 hook：通过 stdout 返回 JSON，agent 读取并应用
+
+  数据传递方案：
+  - 通知型 → 环境变量（AGENT_TOOL_NAME, AGENT_EVENT, 等）
+  - 变换型 → 环境变量 + stdin 传 JSON payload，stdout 接收修改后的数据
+
+  配置大概长这样：
+  hooks:
+    post-tool:
+      - command: "python scripts/log_tool.py"   # 通知型，fire-and-forget
+    pre-compress:
+      - command: "bash hooks/notify_compress.sh" # 通知型
+    post-sampling:
+      - command: "node hooks/filter_output.js"   # 变换型，读 stdout
+
+  ---
+  再问最后一个细节：变换型 Hook 执行失败时（命令报错/超时），agent 应该怎么处理？
+
+  - A. 报错并中止当前操作 — 严格模式，hook 失败 = 操作取消
+  - B. 记录警告并继续 — 宽容模式，hook 只是附加能力，不应阻断主流程
+  - C. 可配置 — 每个 hook 可以声明 on_error: abort | warn | ignore
+
+  8 tasks (1 done, 1 in progress, 6 open)
+  √ Explore project context
+  □ Write design doc
+  ■ Ask clarifying questions
+  □ User reviews spec
+  □ Transition to implementation plan
+  □ Propose 2-3 approaches
+  □ Present design
+  □ Spec self-review
+
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+> 
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ bypass permissions on (meta+m to cycle) · ctrl+t to hide tasks
+ ▐▛███▜▌   Claude Code v2.1.83
+▝▜█████▛▘  Sonnet 4.6 · API Usage Billing
+  ▘▘ ▝▝    F:\workspace\code-agent
+
+> /superpowers:brainstorm   6. Hooks 系统 — 缺失
+
+  你的代码：无 hooks。
+
+  Claude Code 有：PreCompact hooks、PostSampling hooks、settings change hooks，让用户自定义 agent 行为，不需要修改源码。
+
+  ---这个你提一些建议呢
+
+● /superpowers:brainstorm 已废弃，即将在下个主版本中移除。
+
+  请改用 superpowers brainstorming skill，方式是直接告诉我你想做什么，我会自动调用它。比如：
+
+  ▎ "帮我为 Hooks 系统做一些设计建议"
+
+● Skill(superpowers:brainstorming)
+  ⎿  Successfully loaded skill
+
+  Searched for 1 pattern, read 5 files (ctrl+o to expand)
+
+● 好，项目上下文清楚了。现在开始澄清阶段。
+
+  ---
+  首先一个核心问题：Hooks 的主要目标是什么？
+
+  - A. 纯观察 (Observability) — 日志、监控、通知，Hook 不影响 agent 行为
+  - B. 行为拦截 (Interception) — Hook 可以修改工具输入/输出，甚至阻止工具执行
+  - C. 两者都要 — 既能观察，也能干预
+
+  这个选择决定了架构的基础方向（Observer 模式 vs Interceptor 链）。
+
+✻ Cooked for 1m 32s
+
+> 你觉得哪个好呢
+
+● 推荐 C（两者都要），理由如下：
+
+  纯观察（A） 太受限——用户最常见的需求恰恰是"在工具执行前注入额外信息"或"执行后自动记录到外部系统"，这些都需要某种程度的干预。
+
+  纯拦截（B） 过于复杂且危险——如果每个 hook 都能修改行为，实现成本高，用户也容易把 agent 搞坏。
+
+  两者都要（C） 但要有清晰分层：
+
+  ┌─────────────┬───────────────────────────────┬──────────────────────────────────────────────┐
+  │  Hook 类型  │             能力              │                   对应场景                   │
+  ├─────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+  │ 通知型 Hook │ 只读，fire-and-forget，不阻塞 │ 日志、Slack 通知、metrics 上报               │
+  ├─────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+  │ 变换型 Hook │ 可修改数据，可阻止执行        │ PreCompact 修改摘要策略、pre-tool 注入上下文 │
+  └─────────────┴───────────────────────────────┴──────────────────────────────────────────────┘
+
+  变换型 Hook 只在少数几个关键点开放（不是每个事件都能干预），这样复杂度可控。
+
+  对应到这个项目最有价值的 hook 点：
+  - pre-tool / post-tool — 工具执行前后
+  - pre-compress / post-compress — 压缩前后（对应 Claude Code 的 PreCompact）
+  - post-sampling — 模型返回后
+  - session-start / session-end — 会话生命周期
+
+  ---
+  下一个问题：Hook 的执行方式偏向哪种？
+
+  - A. Shell 命令 — 在 .agent.yml 里配置命令字符串，通过环境变量传递上下文，agent 等待命令退出（类似 Claude Code 的实现）
+  - B. TypeScript 插件 — 用户写 .ts 文件，agent import 并调用，类型安全但需要编译环境
+  - C. 两者都支持 — shell 命令作为基础，同时支持 JS/TS 模块
+
+✻ Worked for 31s
+
+> 你推荐哪个呢
+
+● 推荐 A（Shell 命令），理由：
+
+  为什么不选 B/C：
+  - TypeScript 插件需要用户懂这个项目的内部类型，门槛高
+  - "两者都支持"= 维护两套接口，现在没必要
+  - 你提到 Claude Code 作为参照，它就是 shell 命令方案
+
+  Shell 命令的优势恰好适合这个项目：
+  - 语言无关——用户可以用 bash、Python、任何东西写 hook
+  - 配置在 .agent.yml 里，和现有风格一致
+  - 项目已经有 BashTool 和 executeWithTimeout，spawn 子进程的基础设施都有
+  - 通知型 hook：命令退出就完事，不需要返回值
+  - 变换型 hook：通过 stdout 返回 JSON，agent 读取并应用
+
+  数据传递方案：
+  - 通知型 → 环境变量（AGENT_TOOL_NAME, AGENT_EVENT, 等）
+  - 变换型 → 环境变量 + stdin 传 JSON payload，stdout 接收修改后的数据
+
+  配置大概长这样：
+  hooks:
+    post-tool:
+      - command: "python scripts/log_tool.py"   # 通知型，fire-and-forget
+    pre-compress:
+      - command: "bash hooks/notify_compress.sh" # 通知型
+    post-sampling:
+      - command: "node hooks/filter_output.js"   # 变换型，读 stdout
+
+  ---
+  再问最后一个细节：变换型 Hook 执行失败时（命令报错/超时），agent 应该怎么处理？
+
+  - A. 报错并中止当前操作 — 严格模式，hook 失败 = 操作取消
+  - B. 记录警告并继续 — 宽容模式，hook 只是附加能力，不应阻断主流程
+  - C. 可配置 — 每个 hook 可以声明 on_error: abort | warn | ignore
+
+  8 tasks (1 done, 1 in progress, 6 open)
+  √ Explore project context
+  □ Write design doc
+  ■ Ask clarifying questions
+  □ User reviews spec
+  □ Transition to implementation plan
+  □ Propose 2-3 approaches
+  □ Present design
+  □ Spec self-review
+
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+> 
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ bypass permissions on (meta+m to cycle) · ctrl+t to hide tasks
+ ▐▛███▜▌   Claude Code v2.1.83
+▝▜█████▛▘  Sonnet 4.6 · API Usage Billing
+  ▘▘ ▝▝    F:\workspace\code-agent
+
+> /superpowers:brainstorm   6. Hooks 系统 — 缺失
+
+  你的代码：无 hooks。
+
+  Claude Code 有：PreCompact hooks、PostSampling hooks、settings change hooks，让用户自定义 agent 行为，不需要修改源码。
+
+  ---这个你提一些建议呢
+
+● /superpowers:brainstorm 已废弃，即将在下个主版本中移除。
+
+  请改用 superpowers brainstorming skill，方式是直接告诉我你想做什么，我会自动调用它。比如：
+
+  ▎ "帮我为 Hooks 系统做一些设计建议"
+
+● Skill(superpowers:brainstorming)
+  ⎿  Successfully loaded skill
+
+  Searched for 1 pattern, read 5 files (ctrl+o to expand)
+
+● 好，项目上下文清楚了。现在开始澄清阶段。
+
+  ---
+  首先一个核心问题：Hooks 的主要目标是什么？
+
+  - A. 纯观察 (Observability) — 日志、监控、通知，Hook 不影响 agent 行为
+  - B. 行为拦截 (Interception) — Hook 可以修改工具输入/输出，甚至阻止工具执行
+  - C. 两者都要 — 既能观察，也能干预
+
+  这个选择决定了架构的基础方向（Observer 模式 vs Interceptor 链）。
+
+✻ Cooked for 1m 32s
+
+> 你觉得哪个好呢
+
+● 推荐 C（两者都要），理由如下：
+
+  纯观察（A） 太受限——用户最常见的需求恰恰是"在工具执行前注入额外信息"或"执行后自动记录到外部系统"，这些都需要某种程度的干预。
+
+  纯拦截（B） 过于复杂且危险——如果每个 hook 都能修改行为，实现成本高，用户也容易把 agent 搞坏。
+
+  两者都要（C） 但要有清晰分层：
+
+  ┌─────────────┬───────────────────────────────┬──────────────────────────────────────────────┐
+  │  Hook 类型  │             能力              │                   对应场景                   │
+  ├─────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+  │ 通知型 Hook │ 只读，fire-and-forget，不阻塞 │ 日志、Slack 通知、metrics 上报               │
+  ├─────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+  │ 变换型 Hook │ 可修改数据，可阻止执行        │ PreCompact 修改摘要策略、pre-tool 注入上下文 │
+  └─────────────┴───────────────────────────────┴──────────────────────────────────────────────┘
+
+  变换型 Hook 只在少数几个关键点开放（不是每个事件都能干预），这样复杂度可控。
+
+  对应到这个项目最有价值的 hook 点：
+  - pre-tool / post-tool — 工具执行前后
+  - pre-compress / post-compress — 压缩前后（对应 Claude Code 的 PreCompact）
+  - post-sampling — 模型返回后
+  - session-start / session-end — 会话生命周期
+
+  ---
+  下一个问题：Hook 的执行方式偏向哪种？
+
+  - A. Shell 命令 — 在 .agent.yml 里配置命令字符串，通过环境变量传递上下文，agent 等待命令退出（类似 Claude Code 的实现）
+  - B. TypeScript 插件 — 用户写 .ts 文件，agent import 并调用，类型安全但需要编译环境
+  - C. 两者都支持 — shell 命令作为基础，同时支持 JS/TS 模块
+
+✻ Worked for 31s
+
+> 你推荐哪个呢
+
+● 推荐 A（Shell 命令），理由：
+
+  为什么不选 B/C：
+  - TypeScript 插件需要用户懂这个项目的内部类型，门槛高
+  - "两者都支持"= 维护两套接口，现在没必要
+  - 你提到 Claude Code 作为参照，它就是 shell 命令方案
+
+  Shell 命令的优势恰好适合这个项目：
+  - 语言无关——用户可以用 bash、Python、任何东西写 hook
+  - 配置在 .agent.yml 里，和现有风格一致
+  - 项目已经有 BashTool 和 executeWithTimeout，spawn 子进程的基础设施都有
+  - 通知型 hook：命令退出就完事，不需要返回值
+  - 变换型 hook：通过 stdout 返回 JSON，agent 读取并应用
+
+  数据传递方案：
+  - 通知型 → 环境变量（AGENT_TOOL_NAME, AGENT_EVENT, 等）
+  - 变换型 → 环境变量 + stdin 传 JSON payload，stdout 接收修改后的数据
+
+  配置大概长这样：
+  hooks:
+    post-tool:
+      - command: "python scripts/log_tool.py"   # 通知型，fire-and-forget
+    pre-compress:
+      - command: "bash hooks/notify_compress.sh" # 通知型
+    post-sampling:
+      - command: "node hooks/filter_output.js"   # 变换型，读 stdout
+
+  ---
+  再问最后一个细节：变换型 Hook 执行失败时（命令报错/超时），agent 应该怎么处理？
+
+  - A. 报错并中止当前操作 — 严格模式，hook 失败 = 操作取消
+  - B. 记录警告并继续 — 宽容模式，hook 只是附加能力，不应阻断主流程
+  - C. 可配置 — 每个 hook 可以声明 on_error: abort | warn | ignore
+
+  8 tasks (1 done, 1 in progress, 6 open)
+  √ Explore project context
+  □ Write design doc
+  ■ Ask clarifying questions
+  □ User reviews spec
+  □ Transition to implementation plan
+  □ Propose 2-3 approaches
+  □ Present design
+  □ Spec self-review
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+> 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ bypass permissions on (meta+m to cycle) · ctrl+t to hide tasks
+ ▐▛███▜▌   Claude Code v2.1.83
+▝▜█████▛▘  Sonnet 4.6 · API Usage Billing
+  ▘▘ ▝▝    F:\workspace\code-agent
+
+> /superpowers:brainstorm   6. Hooks 系统 — 缺失
+
+  你的代码：无 hooks。
+
+  Claude Code 有：PreCompact hooks、PostSampling hooks、settings change hooks，让用户自定义 agent 行为，不需要修改源码。
+
+  ---这个你提一些建议呢
+
+● /superpowers:brainstorm 已废弃，即将在下个主版本中移除。
+
+  请改用 superpowers brainstorming skill，方式是直接告诉我你想做什么，我会自动调用它。比如：
+
+  ▎ "帮我为 Hooks 系统做一些设计建议"
+
+● Skill(superpowers:brainstorming)
+  ⎿  Successfully loaded skill
+
+  Searched for 1 pattern, read 5 files (ctrl+o to expand)
+
+● 好，项目上下文清楚了。现在开始澄清阶段。
+
+  ---
+  首先一个核心问题：Hooks 的主要目标是什么？
+
+  - A. 纯观察 (Observability) — 日志、监控、通知，Hook 不影响 agent 行为
+  - B. 行为拦截 (Interception) — Hook 可以修改工具输入/输出，甚至阻止工具执行
+  - C. 两者都要 — 既能观察，也能干预
+
+  这个选择决定了架构的基础方向（Observer 模式 vs Interceptor 链）。
+
+✻ Cooked for 1m 32s
+
+> 你觉得哪个好呢
+
+● 推荐 C（两者都要），理由如下：
+
+  纯观察（A） 太受限——用户最常见的需求恰恰是"在工具执行前注入额外信息"或"执行后自动记录到外部系统"，这些都需要某种程度的干预。
+
+  纯拦截（B） 过于复杂且危险——如果每个 hook 都能修改行为，实现成本高，用户也容易把 agent 搞坏。
+
+  两者都要（C） 但要有清晰分层：
+
+  ┌─────────────┬───────────────────────────────┬──────────────────────────────────────────────┐
+  │  Hook 类型  │             能力              │                   对应场景                   │
+  ├─────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+  │ 通知型 Hook │ 只读，fire-and-forget，不阻塞 │ 日志、Slack 通知、metrics 上报               │
+  ├─────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+  │ 变换型 Hook │ 可修改数据，可阻止执行        │ PreCompact 修改摘要策略、pre-tool 注入上下文 │
+  └─────────────┴───────────────────────────────┴──────────────────────────────────────────────┘
+
+  变换型 Hook 只在少数几个关键点开放（不是每个事件都能干预），这样复杂度可控。
+
+  对应到这个项目最有价值的 hook 点：
+  - pre-tool / post-tool — 工具执行前后
+  - pre-compress / post-compress — 压缩前后（对应 Claude Code 的 PreCompact）
+  - post-sampling — 模型返回后
+  - session-start / session-end — 会话生命周期
+
+  ---
+  下一个问题：Hook 的执行方式偏向哪种？
+
+  - A. Shell 命令 — 在 .agent.yml 里配置命令字符串，通过环境变量传递上下文，agent 等待命令退出（类似 Claude Code 的实现）
+  - B. TypeScript 插件 — 用户写 .ts 文件，agent import 并调用，类型安全但需要编译环境
+  - C. 两者都支持 — shell 命令作为基础，同时支持 JS/TS 模块
+
+✻ Worked for 31s
+
+> 你推荐哪个呢
+
+● 推荐 A（Shell 命令），理由：
+
+  为什么不选 B/C：
+  - TypeScript 插件需要用户懂这个项目的内部类型，门槛高
+  - "两者都支持"= 维护两套接口，现在没必要
+  - 你提到 Claude Code 作为参照，它就是 shell 命令方案
+
+  Shell 命令的优势恰好适合这个项目：
+  - 语言无关——用户可以用 bash、Python、任何东西写 hook
+  - 配置在 .agent.yml 里，和现有风格一致
+  - 项目已经有 BashTool 和 executeWithTimeout，spawn 子进程的基础设施都有
+  - 通知型 hook：命令退出就完事，不需要返回值
+  - 变换型 hook：通过 stdout 返回 JSON，agent 读取并应用
+
+  数据传递方案：
+  - 通知型 → 环境变量（AGENT_TOOL_NAME, AGENT_EVENT, 等）
+  - 变换型 → 环境变量 + stdin 传 JSON payload，stdout 接收修改后的数据
+
+  配置大概长这样：
+  hooks:
+    post-tool:
+      - command: "python scripts/log_tool.py"   # 通知型，fire-and-forget
+    pre-compress:
+      - command: "bash hooks/notify_compress.sh" # 通知型
+    post-sampling:
+      - command: "node hooks/filter_output.js"   # 变换型，读 stdout
+
+  ---
+  再问最后一个细节：变换型 Hook 执行失败时（命令报错/超时），agent 应该怎么处理？
+
+  - A. 报错并中止当前操作 — 严格模式，hook 失败 = 操作取消
+  - B. 记录警告并继续 — 宽容模式，hook 只是附加能力，不应阻断主流程
+  - C. 可配置 — 每个 hook 可以声明 on_error: abort | warn | ignore
+
+  8 tasks (1 done, 1 in progress, 6 open)
+  √ Explore project context
+  □ Write design doc
+  ■ Ask clarifying questions
+  □ User reviews spec
+  □ Transition to implementation plan
+  □ Propose 2-3 approaches
+  □ Present design
+  □ Spec self-review
+
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+> 
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ bypass permissions on (meta+m to cycle) · ctrl+t to hide tasks
+ ▐▛███▜▌   Claude Code v2.1.83
+▝▜█████▛▘  Sonnet 4.6 · API Usage Billing
+  ▘▘ ▝▝    F:\workspace\code-agent
+
+> /superpowers:brainstorm   6. Hooks 系统 — 缺失
+
+  你的代码：无 hooks。
+
+  Claude Code 有：PreCompact hooks、PostSampling hooks、settings change hooks，让用户自定义 agent 行为，不需要修改源码。
+
+  ---这个你提一些建议呢
+
+● /superpowers:brainstorm 已废弃，即将在下个主版本中移除。
+
+  请改用 superpowers brainstorming skill，方式是直接告诉我你想做什么，我会自动调用它。比如：
+
+  ▎ "帮我为 Hooks 系统做一些设计建议"
+
+● Skill(superpowers:brainstorming)
+  ⎿  Successfully loaded skill
+
+  Searched for 1 pattern, read 5 files (ctrl+o to expand)
+
+● 好，项目上下文清楚了。现在开始澄清阶段。
+
+  ---
+  首先一个核心问题：Hooks 的主要目标是什么？
+
+  - A. 纯观察 (Observability) — 日志、监控、通知，Hook 不影响 agent 行为
+  - B. 行为拦截 (Interception) — Hook 可以修改工具输入/输出，甚至阻止工具执行
+  - C. 两者都要 — 既能观察，也能干预
+
+  这个选择决定了架构的基础方向（Observer 模式 vs Interceptor 链）。
+
+✻ Cooked for 1m 32s
+
+> 你觉得哪个好呢
+
+● 推荐 C（两者都要），理由如下：
+
+  纯观察（A） 太受限——用户最常见的需求恰恰是"在工具执行前注入额外信息"或"执行后自动记录到外部系统"，这些都需要某种程度的干预。
+
+  纯拦截（B） 过于复杂且危险——如果每个 hook 都能修改行为，实现成本高，用户也容易把 agent 搞坏。
+
+  两者都要（C） 但要有清晰分层：
+
+  ┌─────────────┬───────────────────────────────┬──────────────────────────────────────────────┐
+  │  Hook 类型  │             能力              │                   对应场景                   │
+  ├─────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+  │ 通知型 Hook │ 只读，fire-and-forget，不阻塞 │ 日志、Slack 通知、metrics 上报               │
+  ├─────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+  │ 变换型 Hook │ 可修改数据，可阻止执行        │ PreCompact 修改摘要策略、pre-tool 注入上下文 │
+  └─────────────┴───────────────────────────────┴──────────────────────────────────────────────┘
+
+  变换型 Hook 只在少数几个关键点开放（不是每个事件都能干预），这样复杂度可控。
+
+  对应到这个项目最有价值的 hook 点：
+  - pre-tool / post-tool — 工具执行前后
+  - pre-compress / post-compress — 压缩前后（对应 Claude Code 的 PreCompact）
+  - post-sampling — 模型返回后
+  - session-start / session-end — 会话生命周期
+
+  ---
+  下一个问题：Hook 的执行方式偏向哪种？
+
+  - A. Shell 命令 — 在 .agent.yml 里配置命令字符串，通过环境变量传递上下文，agent 等待命令退出（类似 Claude Code 的实现）
+  - B. TypeScript 插件 — 用户写 .ts 文件，agent import 并调用，类型安全但需要编译环境
+  - C. 两者都支持 — shell 命令作为基础，同时支持 JS/TS 模块
+
+✻ Worked for 31s
+
+> 你推荐哪个呢
+
+● 推荐 A（Shell 命令），理由：
+
+  为什么不选 B/C：
+  - TypeScript 插件需要用户懂这个项目的内部类型，门槛高
+  - "两者都支持"= 维护两套接口，现在没必要
+  - 你提到 Claude Code 作为参照，它就是 shell 命令方案
+
+  Shell 命令的优势恰好适合这个项目：
+  - 语言无关——用户可以用 bash、Python、任何东西写 hook
+  - 配置在 .agent.yml 里，和现有风格一致
+  - 项目已经有 BashTool 和 executeWithTimeout，spawn 子进程的基础设施都有
+  - 通知型 hook：命令退出就完事，不需要返回值
+  - 变换型 hook：通过 stdout 返回 JSON，agent 读取并应用
+
+  数据传递方案：
+  - 通知型 → 环境变量（AGENT_TOOL_NAME, AGENT_EVENT, 等）
+  - 变换型 → 环境变量 + stdin 传 JSON payload，stdout 接收修改后的数据
+
+  配置大概长这样：
+  hooks:
+    post-tool:
+      - command: "python scripts/log_tool.py"   # 通知型，fire-and-forget
+    pre-compress:
+      - command: "bash hooks/notify_compress.sh" # 通知型
+    post-sampling:
+      - command: "node hooks/filter_output.js"   # 变换型，读 stdout
+
+  ---
+  再问最后一个细节：变换型 Hook 执行失败时（命令报错/超时），agent 应该怎么处理？
+
+  - A. 报错并中止当前操作 — 严格模式，hook 失败 = 操作取消
+  - B. 记录警告并继续 — 宽容模式，hook 只是附加能力，不应阻断主流程
+  - C. 可配置 — 每个 hook 可以声明 on_error: abort | warn | ignore
+
+> 你推荐哪个呢，其次我想问，hooks主要是干嘛的呢，对应到这个项目最有价值的 hook 点：
+  - pre-tool / post-tool — 工具执行前后
+  - pre-compress / post-compress — 压缩前后（对应 Claude Code 的 PreCompact）
+  - post-sampling — 模型返回后
+  - session-start / session-end — 会话生命周期为什么需要在这些周期去执行呢
+
+● 错误处理推荐 C，但默认是 B：
+
+  大多数 hook（通知型）失败了不应该阻断 agent，默认 on_error: warn。但对于关键的变换型 hook（比如安全审计），用户应该能声明 on_error: abort。配置一行解决，不过度设计。
+
+  ---
+  为什么需要这些 hook 点——用具体场景说话：
+
+  pre-tool / post-tool — 工具是 agent 对外界产生影响的唯一出口
+  pre-tool:  agent 准备执行 bash "rm -rf build/"
+    → 你的 hook: 把这条命令写进审计日志，或发 Slack 告警
+    → 或者: 检查命令是否在黑名单，abort
+
+  post-tool: agent 刚写完一个文件
+    → 你的 hook: 触发 CI pipeline，或自动 git add
+  没有 hook，agent 写了什么、删了什么，你完全不知道。
+
+  pre-compress — 压缩会永久丢失对话历史
+  pre-compress: 80% context 触发压缩前
+    → 你的 hook: 把完整历史归档到文件，以后可以审查
+    → 或者: 注入额外上下文确保压缩摘要保留关键信息
+  压缩后你就看不到原始对话了，pre-compress 是最后机会。
+
+  post-sampling — 模型每次返回都经过这里
+  post-sampling: 模型刚返回一段响应
+    → 你的 hook: 过滤/脱敏敏感信息再显示
+    → 或者: 把所有模型输出记录到合规日志
+    → 或者: 检测到特定关键词时发通知
+
+  session-start / session-end — 会话是一次完整的工作单元
+  session-start:
+    → 从外部系统加载额外上下文（Jira ticket、团队规范）
+    → 发通知 "agent 开始工作了"
+
+  session-end:
+    → 上传本次会话日志到中心化存储
+    → 清理临时文件
+    → 发 "agent 完成，共用了 X tokens，修改了 Y 个文件"
+
+  ---
+  一句话总结： Hook 的本质是让用户把 agent 接入自己的工作流（日志系统、CI/CD、通知、合规审计），而不需要 fork 源码。
+
+  ---
+  现在我对需求理解得比较充分了，准备提出几种架构方案，可以吗？
+
+✻ Sautéed for 38s
+
+> 好
+
+● 三种方案：
+
+  ---
+  方案 A：直接注入 HookManager（推荐）
+
+  HookManager 作为依赖注入到 AgentContext，AgentLoop 和 ToolRegistry 在关键点直接调用：
+
+  // AgentContext 里加一个字段
+  hooks?: HookManager
+
+  // AgentLoop 里直接调用
+  await this.context.hooks?.fire('post-sampling', { text: finalText })
+
+  // ToolRegistry.execute() 里
+  await ctx.hooks?.fire('pre-tool', { name, input })
+  const result = await tool.execute(input)
+  await ctx.hooks?.fire('post-tool', { name, input, result })
+
+  优点： 直接、透明，call site 一目了然，不引入额外抽象层。改动集中在已存在的两个类里。
+
+  缺点： AgentLoop 和 ToolRegistry 需要感知 hooks 的存在，有轻度耦合。
+
+  ---
+  方案 B：事件总线（Event Bus）
+
+  各组件 emit 事件，HookManager 订阅：
+
+  eventBus.emit('pre-tool', { name, input })
+  // HookManager 在别处订阅这个事件并执行 shell command
+
+  优点： 组件之间完全解耦，未来可以加更多订阅者（metrics、日志等）。
+
+  缺点： 引入全局单例 event bus，异步事件的错误处理变复杂，调试时调用链不直观。对当前项目规模有点过设计。
+
+  ---
+  方案 C：中间件链（Middleware Pipeline）
+
+  每个 hook 点变成可组合的管道，hook 是其中的 middleware：
+
+  const result = await pipeline('pre-tool')
+    .use(hookMiddleware)
+    .use(permissionMiddleware)
+    .run({ name, input })
+
+  优点： 极度灵活，hook 可以修改数据并传递给下一个中间件。
+
+  缺点： 对这个项目来说明显过度设计，实现成本高，和现有代码风格差异大。
+
+  ---
+  我推荐方案 A，理由：
+
+  1. 项目里 AgentLoop 和 ToolRegistry 本来就是核心协调者，加 hook 调用是自然延伸
+  2. AgentContext 已经是依赖注入容器（model、tools、logger 等），加 hooks? 完全一致
+  3. 不引入 event bus 这种全局状态，错误处理路径清晰
+  4. 方案 B 的解耦优势在这里体现不出来——hook 点本来就固定在这两个类里
+
+  你同意走方案 A 吗？
+
+✻ Crunched for 44s
+
+  8 tasks (2 done, 1 in progress, 5 open)
+  √ Explore project context
+  □ Write design doc
+  √ Ask clarifying questions
+  □ User reviews spec
+  □ Transition to implementation plan
+  ■ Propose 2-3 approaches
+  □ Present design
+  □ Spec self-review
+
+──────────────────────────
+
+
+
+ 不过在跳到实现计划之前，brainstorming 流程还需要先完成设计文档。我们已经确认了方向（方案 A，shell 命令，C 类错误处理），让我快速呈现完整设计，确认后写 spec 再进入 planning。
+
+● Hooks 系统完整设计
+
+  1. 配置（.agent.yml）
+
+  hooks:
+    session-start:
+      - command: "bash hooks/setup.sh"
+        on_error: warn          # 默认值，可省略
+    pre-tool:
+      - command: "python hooks/audit.py"
+        on_error: abort         # 失败则取消工具执行
+    post-tool:
+      - command: "bash hooks/notify.sh"
+    pre-compress:
+      - command: "bash hooks/archive.sh"
+    post-sampling:
+      - command: "node hooks/filter.js"
+        on_error: warn
+    session-end:
+      - command: "bash hooks/cleanup.sh"
+
+  每个 hook 点支持多个命令，顺序执行。
+
+  ---
+  2. 数据传递（环境变量 + stdin）
+
+  通知型 hook（post-tool、session-end 等）：只通过环境变量传只读数据，不读 stdout：
+
+  AGENT_EVENT=post-tool
+  AGENT_TOOL_NAME=bash
+  AGENT_TOOL_INPUT={"cmd":"rm -rf build/"}
+  AGENT_TOOL_RESULT=...
+  AGENT_SESSION_ID=abc123
+
+  变换型 hook（pre-compress、post-sampling）：额外通过 stdin 传 JSON payload，读 stdout 的 JSON 作为修改结果。stdout 为空则视为"不修改"，保持原数据：
+
+  stdin  → { "messages": [...] }         # pre-compress
+  stdout → { "messages": [...] }  或空   # 返回修改后数据或不变
+
+  ---
+  3. 架构（方案 A）
+
+  新增 src/core/hooks/ 模块：
+
+  src/core/hooks/
+    manager.ts    # HookManager 主类，spawn 子进程、处理超时和错误
+    types.ts      # HookEvent 类型定义、配置 schema 类型
+
+  HookManager 注入到 AgentContext（可选字段 hooks?），在三处调用：
+  - AgentLoop.run() — session-start / session-end / post-sampling
+  - ToolRegistry.execute() — pre-tool / post-tool
+  - ContextManager.compress() — pre-compress / post-compress
+
+  ---
+  4. 错误处理
+
+  ┌──────────────┬────────────────────────┐
+  │   on_error   │          行为          │
+  ├──────────────┼────────────────────────┤
+  │ warn（默认） │ 记录日志，继续执行     │
+  ├──────────────┼────────────────────────┤
+  │ abort        │ 抛出错误，中止当前操作 │
+  ├──────────────┼────────────────────────┤
+  │ ignore       │ 静默失败               │
+  └──────────────┴────────────────────────┘
+
+  Hook 超时默认 5s，可在配置中覆盖（timeout: 10000）。
+
+  ---
+  这个设计看起来如何？确认后我写 spec 文档并进入实现计划阶段。
