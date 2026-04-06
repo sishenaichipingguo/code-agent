@@ -28,7 +28,8 @@ export class SubAgentProcess {
           SUBAGENT_MODEL: modelConfig.model,
           SUBAGENT_API_KEY: modelConfig.apiKey ?? '',
           SUBAGENT_BASE_URL: modelConfig.baseUrl ?? '',
-          SUBAGENT_MAX_TOKENS: String(modelConfig.maxTokens ?? config.maxTokens ?? 4096)
+          SUBAGENT_MAX_TOKENS: String(modelConfig.maxTokens ?? config.maxTokens ?? 4096),
+          MEMORY_NAMESPACE: `sub-${config.type}-${Date.now()}`
         }
       })
 

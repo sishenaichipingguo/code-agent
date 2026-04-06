@@ -6,6 +6,7 @@ import { initLogger } from '@/infra/logger'
 import { initTokenTracker } from '@/infra/token-tracker'
 import { initMetrics } from '@/infra/metrics'
 import { buildPermissionContext, enterAutoMode } from '@/core/permissions'
+import { initMemoryManager } from '@/core/tools/memory'
 
 async function main() {
   const type = process.env.SUBAGENT_TYPE!
@@ -23,6 +24,7 @@ async function main() {
   const logger = initLogger({ level: 'info', file: `.agent/logs/subagent-${type}.log` })
   initTokenTracker()
   initMetrics()
+  initMemoryManager(process.cwd())
 
   try {
     logger.info('SubAgent starting', { type, provider, model })

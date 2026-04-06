@@ -2,11 +2,16 @@ import { execSync } from 'child_process'
 import { platform } from 'os'
 import { loadClaudeMd } from './claude-md'
 import type { MemoryManager } from '@/core/memory/manager'
+import { truncateMemoryIndex } from '@/core/memory/limits'
+import type { SessionStore } from '@/core/memory/session-store'
+import type { TeamStore } from '@/core/memory/team-store'
 
 export class SystemPromptBuilder {
   constructor(
     private cwd: string,
-    private memoryManager?: MemoryManager
+    private memoryManager?: MemoryManager,
+    private sessionStore?: SessionStore,
+    private teamStore?: TeamStore
   ) {}
 
   async build(): Promise<string> {
@@ -18,11 +23,25 @@ export class SystemPromptBuilder {
     // 2. Environment info
     sections.push(this.buildEnv())
 
-    // 3. Memory index (if available and non-empty)
+    // 3. Previous session summary (if available)
+    if (this.sessionStore) {
+      const summary = this.sessionStore.load()
+      if (summary.trim()) sections.push(`## Previous Session\n${summary.trim()}`)
+    }
+
+    // 4. Memory index (if available and non-empty)
     const memory = this.buildMemory()
     if (memory) sections.push(memory)
 
-    // 4. CLAUDE.md (project + global instructions)
+    // 5. Team memory — separate section, also truncation-protected
+    if (this.teamStore) {
+      const teamIndex = this.teamStore.loadIndex().trim()
+      if (/^- \[/m.test(teamIndex)) {
+        sections.push(`## Team Memory\n${truncateMemoryIndex(teamIndex)}`)
+      }
+    }
+
+    // 6. CLAUDE.md (project + global instructions)
     const claudeMd = await loadClaudeMd(this.cwd)
     if (claudeMd) sections.push(claudeMd)
 
@@ -86,11 +105,10 @@ export class SystemPromptBuilder {
   private buildMemory(): string {
     if (!this.memoryManager) return ''
     try {
-      const index = this.memoryManager.loadIndex().trim()
-      // Only inject if there's actual content beyond the template headers
-      const hasEntries = /^- \[/m.test(index)
+      const raw = this.memoryManager.loadIndex().trim()
+      const hasEntries = /^- \[/m.test(raw)
       if (!hasEntries) return ''
-      return `## Memory\n${index}`
+      return `## Memory\n${truncateMemoryIndex(raw)}`
     } catch {
       return ''
     }
