@@ -1,6 +1,7 @@
 // Tool registry and execution
 import type { PermissionCapable, PermissionContext, PermissionResult, PermissionMatcher } from '@/core/permissions'
 import { decide } from '@/core/permissions'
+import type { HookManager } from '@/core/hooks/manager'
 
 export interface Tool extends PermissionCapable {
   name: string
@@ -36,6 +37,7 @@ export function createTool(spec: {
 
 export class ToolRegistry {
   private tools = new Map<string, Tool>()
+  hooks?: HookManager
 
   register(tool: Tool) {
     this.tools.set(tool.name, tool)
@@ -74,14 +76,34 @@ export class ToolRegistry {
     const config = getConfig()
     const timeout = config.tools?.[name as keyof typeof config.tools]?.timeout || 30000
 
+    const hookEnv: Record<string, string> = {
+      AGENT_TOOL_NAME: name,
+      AGENT_TOOL_INPUT: JSON.stringify(input)
+    }
+
     try {
       logger.info('Tool execution started', { tool: name })
+
+      // pre-tool: transform — may modify input; on_error: abort will throw and cancel execution
+      let effectiveInput = input
+      if (this.hooks) {
+        const transformed = await this.hooks.transform('pre-tool', { name, input }, hookEnv)
+        effectiveInput = transformed.input
+      }
+
       const result = await executeWithTimeout(
-        tool.execute(input),
+        tool.execute(effectiveInput),
         timeout,
         new AgentError(ErrorCode.TIMEOUT, `Tool "${name}" timed out after ${timeout}ms`)
       )
       logger.info('Tool execution completed', { tool: name })
+
+      // post-tool: notify — fire and forget, result already computed
+      await this.hooks?.fire('post-tool', {
+        ...hookEnv,
+        AGENT_TOOL_RESULT: typeof result === 'string' ? result : JSON.stringify(result)
+      })
+
       return result
     } catch (error: any) {
       logger.error('Tool execution failed', { tool: name, error: error.message })
