@@ -12,7 +12,7 @@ describe('truncateMemoryIndex', () => {
     const content = line.repeat(MAX_ENTRYPOINT_LINES + 50)
     const result = truncateMemoryIndex(content)
     const lines = result.split('\n').filter(Boolean)
-    expect(lines.length).toBeLessThanOrEqual(MAX_ENTRYPOINT_LINES + 1)
+    expect(lines.length).toBe(MAX_ENTRYPOINT_LINES + 1)
     expect(result).toContain('[truncated]')
   })
 
@@ -20,7 +20,7 @@ describe('truncateMemoryIndex', () => {
     const longLine = '- [x](x.md) — ' + 'a'.repeat(500) + '\n'
     const content = longLine.repeat(60)
     const result = truncateMemoryIndex(content)
-    expect(Buffer.byteLength(result, 'utf8')).toBeLessThanOrEqual(MAX_ENTRYPOINT_BYTES + 200)
+    expect(Buffer.byteLength(result, 'utf8')).toBeLessThanOrEqual(MAX_ENTRYPOINT_BYTES + 100)
     expect(result).toContain('[truncated]')
   })
 })
