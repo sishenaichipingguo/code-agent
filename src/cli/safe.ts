@@ -9,6 +9,7 @@ import { createToolRegistry } from '@/core/tools/registry'
 import { ModelFactory } from '@/core/models/factory'
 import { SessionManager } from '@/core/session/manager'
 import { buildPermissionContext } from '@/core/permissions'
+import { createHookManager } from '@/core/hooks/manager'
 
 export async function runSafe(args: Args) {
   // Load config
@@ -41,6 +42,7 @@ export async function runSafe(args: Args) {
 
   // Initialize components
   const tools = await createToolRegistry()
+  const hookManager = createHookManager(config.hooks as any)
 
   // Start embedded MCP server if configured
   if (config.mcp?.expose) {
@@ -65,8 +67,11 @@ export async function runSafe(args: Args) {
     tools,
     permissionContext: buildPermissionContext('default'),
     logger,
-    streaming: true
+    streaming: true,
+    hooks: hookManager
   })
+
+  tools.hooks = hookManager
 
   const message = args.message || await promptUser()
   await loop.run(message)
