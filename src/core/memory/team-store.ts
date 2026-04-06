@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import type { MemoryCreateInput, MemoryType } from './types'
 
@@ -28,32 +28,13 @@ ${input.content}`
   }
 
   /**
-   * Returns a combined view of the team memory index and all file contents.
+   * Returns the MEMORY.md index contents for injection into the system prompt.
    * Returns empty string if the team directory does not exist.
    */
   loadIndex(): string {
     if (!existsSync(this.teamDir)) return ''
     if (!existsSync(this.indexPath)) return ''
-    try {
-      const index = readFileSync(this.indexPath, 'utf-8')
-      const files = existsSync(this.teamDir)
-        ? readdirSync(this.teamDir).filter(f => f.endsWith('.md') && f !== 'MEMORY.md')
-        : []
-
-      if (files.length === 0) return index
-
-      const contentSections = files.map(f => {
-        try {
-          return readFileSync(join(this.teamDir, f), 'utf-8')
-        } catch {
-          return ''
-        }
-      }).filter(Boolean)
-
-      return [index, ...contentSections].join('\n\n')
-    } catch {
-      return ''
-    }
+    return this.loadIndexRaw()
   }
 
   private ensureDir() {

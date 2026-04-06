@@ -32,6 +32,7 @@ describe('TeamStore', () => {
     const teamDir = join(tmpDir, 'team')
     const store = new TeamStore(teamDir)
     store.save({ name: 'style', description: 'coding style', type: 'feedback', content: 'No semicolons.' })
-    expect(store.loadIndex()).toContain('No semicolons')
+    expect(store.loadIndex()).toContain('[style]')
+    expect(store.loadIndex()).toContain('coding style')
   })
 })
