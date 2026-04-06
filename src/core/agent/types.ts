@@ -1,3 +1,5 @@
+import type { BackendType } from './backends/types'
+
 export type SubAgentType = 'general-purpose' | 'explore' | 'plan' | 'context-gatherer'
 
 export interface SubAgentConfig {
@@ -25,4 +27,5 @@ export interface AgentInput {
   description: string
   run_in_background?: boolean
   model?: string
+  backend?: BackendType
 }

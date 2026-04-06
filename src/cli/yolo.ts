@@ -1,5 +1,19 @@
 import type { Args } from './parser'
 import { initLogger, getLogger } from '@/infra/logger'
+import { SlashCommandRegistry } from '@/core/slash/registry'
+import { SkillLoader } from '@/core/slash/skill-loader'
+import { PluginManager } from '@/core/plugins/manager'
+import { compactHandler } from '@/core/slash/builtins/compact'
+import { costHandler } from '@/core/slash/builtins/cost'
+import { clearHandler } from '@/core/slash/builtins/clear'
+import { modelHandler } from '@/core/slash/builtins/model'
+import { sessionHandler } from '@/core/slash/builtins/session'
+import { memoryHandler } from '@/core/slash/builtins/memory'
+import { makeHelpHandler } from '@/core/slash/builtins/help'
+import { makeSkillsHandler } from '@/core/slash/builtins/skills'
+import { makePluginsHandler } from '@/core/slash/builtins/plugins'
+import os from 'os'
+import { join } from 'path'
 import { initTokenTracker, getTokenTracker } from '@/infra/token-tracker'
 import { initMetrics, getMetrics } from '@/infra/metrics'
 import { GracefulShutdown } from '@/infra/graceful-shutdown'
@@ -126,6 +140,35 @@ export async function runYolo(args: Args) {
 
   tools.hooks = hookManager
 
+  // Build slash command registry
+  const registry = new SlashCommandRegistry()
+
+  // Discover plugins (project-level then user-level, user has higher priority)
+  const pluginManager = new PluginManager([
+    join(process.cwd(), '.agent', 'plugins'),
+    join(os.homedir(), '.agent', 'plugins')
+  ])
+  await pluginManager.discover()
+
+  // Load skills: user < project < plugin (later = higher priority)
+  const skillLoader = new SkillLoader([
+    join(os.homedir(), '.agent', 'skills'),
+    join(process.cwd(), '.agent', 'skills'),
+    ...pluginManager.getSkillDirs()
+  ])
+  await skillLoader.loadInto(registry)
+
+  // Register built-in commands (priority -1 so skills can override)
+  registry.register({ name: 'compact', description: 'Compress conversation context', args: 'none', handler: compactHandler }, -1)
+  registry.register({ name: 'cost', description: 'Show token usage and cost', args: 'none', handler: costHandler }, -1)
+  registry.register({ name: 'clear', description: 'Clear conversation history', args: 'none', handler: clearHandler }, -1)
+  registry.register({ name: 'model', description: 'Show current model', args: 'optional', handler: modelHandler }, -1)
+  registry.register({ name: 'session', description: 'Show current session info', args: 'none', handler: sessionHandler }, -1)
+  registry.register({ name: 'memory', description: 'Show memory index', args: 'none', handler: memoryHandler }, -1)
+  registry.register({ name: 'skills', description: 'List loaded skill commands', args: 'none', handler: makeSkillsHandler(registry) }, -1)
+  registry.register({ name: 'plugins', description: 'List loaded plugins', args: 'none', handler: makePluginsHandler(pluginManager) }, -1)
+  registry.register({ name: 'help', description: 'List all available commands', args: 'none', handler: makeHelpHandler(registry) }, -1)
+
   shutdown.onShutdown(async () => {
     const msgs = loop.getMessages()
     if (msgs.length >= 2) {
@@ -146,12 +189,15 @@ export async function runYolo(args: Args) {
   })
 
   const rawMessage = args.message || await promptUser()
+  const cmdCtx = { args: '', loop, config, tokenTracker: tracker, sessionManager }
+  const dispatchResult = await registry.dispatch(rawMessage, cmdCtx)
 
-  if (rawMessage.trim().toLowerCase() === '/compact') {
-    await loop.compact(loop.getMessages())
-  } else {
+  if (dispatchResult.type === 'inject') {
+    await loop.run(dispatchResult.message)
+  } else if (dispatchResult.type === 'unknown') {
     await loop.run(rawMessage)
   }
+  // type === 'handled' → command already ran, nothing more to do
 
   await sessionManager.save()
 

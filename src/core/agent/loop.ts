@@ -150,6 +150,10 @@ export class AgentLoop {
     return this._messages
   }
 
+  clearMessages(): void {
+    this._messages = []
+  }
+
   private async executeTools(tools: any[]): Promise<any[]> {
     const metrics = getMetrics()
 

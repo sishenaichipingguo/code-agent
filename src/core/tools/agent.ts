@@ -30,7 +30,12 @@ export class AgentTool implements Tool {
       },
       description: { type: 'string', description: 'Short description of what the agent will do' },
       prompt: { type: 'string', description: 'Full task prompt for the sub-agent' },
-      run_in_background: { type: 'boolean', description: 'Run in background and return agent ID immediately' }
+      run_in_background: { type: 'boolean', description: 'Run in background and return agent ID immediately' },
+      backend: {
+        type: 'string',
+        enum: ['in-process', 'tmux', 'iterm2'],
+        description: 'Terminal backend for running the sub-agent (auto-detected if omitted)'
+      }
     },
     required: ['subagent_type', 'description', 'prompt']
   }
@@ -47,7 +52,7 @@ export class AgentTool implements Tool {
     const result = await d.dispatch(
       input.subagent_type,
       input.prompt,
-      { background: input.run_in_background }
+      { background: input.run_in_background, backend: input.backend }
     )
 
     if (result.status === 'running') {
