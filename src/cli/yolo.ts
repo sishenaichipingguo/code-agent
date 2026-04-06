@@ -14,6 +14,7 @@ import { SystemPromptBuilder } from '@/core/system-prompt/builder'
 import { initMemoryManager, getMemoryManager } from '@/core/tools/memory'
 import { buildPermissionContext } from '@/core/permissions'
 import { SessionStore } from '@/core/memory/session-store'
+import { AutoExtractor } from '@/core/memory/auto-extractor'
 
 export async function runYolo(args: Args) {
   const config = await loadConfig(args.config)
@@ -97,6 +98,8 @@ export async function runYolo(args: Args) {
   // Build full system prompt: role rules + env info + MEMORY.md + CLAUDE.md
   let memoryMgr: ReturnType<typeof getMemoryManager> | undefined
   try { memoryMgr = getMemoryManager() } catch { /* not initialized */ }
+  let autoExtractor: AutoExtractor | undefined
+  if (memoryMgr) autoExtractor = new AutoExtractor(memoryMgr, model)
   const systemPrompt = await new SystemPromptBuilder(process.cwd(), memoryMgr, sessionStore).build()
   logger.debug('System prompt built', { length: systemPrompt.length })
 
@@ -117,6 +120,17 @@ export async function runYolo(args: Args) {
     if (msgs.length >= 2) {
       process.stderr.write('🧠 Saving session summary...\n')
       await sessionStore.save(msgs)
+    }
+  })
+
+  shutdown.onShutdown(async () => {
+    if (!autoExtractor) return
+    const msgs = loop.getMessages()
+    const shouldExtract = config.memory?.autoExtract !== false &&
+      msgs.length >= (config.memory?.extractThreshold ?? 6)
+    if (shouldExtract) {
+      process.stderr.write('🧠 Extracting memories from session...\n')
+      await autoExtractor.extract(msgs)
     }
   })
 
