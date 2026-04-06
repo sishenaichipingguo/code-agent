@@ -4,12 +4,14 @@ import { loadClaudeMd } from './claude-md'
 import type { MemoryManager } from '@/core/memory/manager'
 import { truncateMemoryIndex } from '@/core/memory/limits'
 import type { SessionStore } from '@/core/memory/session-store'
+import type { TeamStore } from '@/core/memory/team-store'
 
 export class SystemPromptBuilder {
   constructor(
     private cwd: string,
     private memoryManager?: MemoryManager,
-    private sessionStore?: SessionStore
+    private sessionStore?: SessionStore,
+    private teamStore?: TeamStore
   ) {}
 
   async build(): Promise<string> {
@@ -31,7 +33,15 @@ export class SystemPromptBuilder {
     const memory = this.buildMemory()
     if (memory) sections.push(memory)
 
-    // 5. CLAUDE.md (project + global instructions)
+    // 5. Team memory — separate section, also truncation-protected
+    if (this.teamStore) {
+      const teamIndex = this.teamStore.loadIndex().trim()
+      if (/^- \[/m.test(teamIndex)) {
+        sections.push(`## Team Memory\n${truncateMemoryIndex(teamIndex)}`)
+      }
+    }
+
+    // 6. CLAUDE.md (project + global instructions)
     const claudeMd = await loadClaudeMd(this.cwd)
     if (claudeMd) sections.push(claudeMd)
 

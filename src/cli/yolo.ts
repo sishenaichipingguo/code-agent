@@ -11,10 +11,11 @@ import { SessionManager } from '@/core/session/manager'
 import { initAgentDispatcher } from '@/core/tools/agent'
 import { ContextManager } from '@/core/context/manager'
 import { SystemPromptBuilder } from '@/core/system-prompt/builder'
-import { initMemoryManager, getMemoryManager } from '@/core/tools/memory'
+import { initMemoryManager, getMemoryManager, initTeamStore, getTeamStore } from '@/core/tools/memory'
 import { buildPermissionContext } from '@/core/permissions'
 import { SessionStore } from '@/core/memory/session-store'
 import { AutoExtractor } from '@/core/memory/auto-extractor'
+import type { TeamStore } from '@/core/memory/team-store'
 
 export async function runYolo(args: Args) {
   const config = await loadConfig(args.config)
@@ -61,6 +62,11 @@ export async function runYolo(args: Args) {
 
   // Initialize memory manager so memory tools work and MEMORY.md can be injected
   initMemoryManager(process.cwd())
+  let teamStoreMgr: TeamStore | undefined
+  if (config.memory?.teamDir) {
+    initTeamStore(config.memory.teamDir)
+    try { teamStoreMgr = getTeamStore() } catch { /* teamDir not configured */ }
+  }
   const sessionStore = new SessionStore(process.cwd(), model)
 
   // Initialize dispatcher with the same model config so subagents use the same provider
@@ -100,7 +106,7 @@ export async function runYolo(args: Args) {
   try { memoryMgr = getMemoryManager() } catch { /* not initialized */ }
   let autoExtractor: AutoExtractor | undefined
   if (memoryMgr) autoExtractor = new AutoExtractor(memoryMgr, model)
-  const systemPrompt = await new SystemPromptBuilder(process.cwd(), memoryMgr, sessionStore).build()
+  const systemPrompt = await new SystemPromptBuilder(process.cwd(), memoryMgr, sessionStore, teamStoreMgr).build()
   logger.debug('System prompt built', { length: systemPrompt.length })
 
   const loop = new AgentLoop({

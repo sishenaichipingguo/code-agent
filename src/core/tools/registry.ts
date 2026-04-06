@@ -139,7 +139,7 @@ export async function createToolRegistry(): Promise<ToolRegistry> {
   const { MvTool } = await import('./mv')
   const { RmTool } = await import('./rm')
   const { TaskCreateTool, TaskUpdateTool, TaskListTool, TaskGetTool } = await import('./task')
-  const { MemorySaveTool, MemoryLoadTool, MemoryUpdateTool, MemoryDeleteTool } = await import('./memory')
+  const { MemorySaveTool, MemoryLoadTool, MemoryUpdateTool, MemoryDeleteTool, MemoryTeamSaveTool } = await import('./memory')
   const { EnterPlanModeTool, ExitPlanModeTool } = await import('./plan')
   const { AgentTool, SendMessageTool } = await import('./agent')
 
@@ -161,6 +161,7 @@ export async function createToolRegistry(): Promise<ToolRegistry> {
   registry.register(new MemoryLoadTool())
   registry.register(new MemoryUpdateTool())
   registry.register(new MemoryDeleteTool())
+  registry.register(new MemoryTeamSaveTool())
   registry.register(new EnterPlanModeTool())
   registry.register(new ExitPlanModeTool())
   registry.register(new AgentTool())
