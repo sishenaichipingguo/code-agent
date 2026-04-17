@@ -15,7 +15,7 @@ async function main() {
   const allowedTools: string[] = JSON.parse(process.env.SUBAGENT_TOOLS!)
   const systemPrompt = process.env.SUBAGENT_SYSTEM ?? ''
   const provider = (process.env.SUBAGENT_PROVIDER ?? 'anthropic') as any
-  const model = process.env.SUBAGENT_MODEL ?? 'claude-sonnet-4'
+  const model = process.env.SUBAGENT_MODEL ?? 'claude-sonnet-4-6'
   const apiKey = process.env.SUBAGENT_API_KEY ?? process.env.ANTHROPIC_API_KEY ?? ''
   const baseUrl = process.env.SUBAGENT_BASE_URL
   const maxTokens = parseInt(process.env.SUBAGENT_MAX_TOKENS ?? '4096', 10)

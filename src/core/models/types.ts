@@ -53,7 +53,7 @@ export interface UnifiedResponse {
 // Context window limits per model (used for compression threshold)
 export const MODEL_CONTEXT_LIMITS: Record<string, number> = {
   'claude-opus-4':    200_000,
-  'claude-sonnet-4':  200_000,
+  'claude-sonnet-4-6':  200_000,
   'claude-haiku-4':   200_000,
   'claude-opus-4-5':  200_000,
   'claude-sonnet-4-5': 200_000,

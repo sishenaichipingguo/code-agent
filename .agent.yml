@@ -1,6 +1,5 @@
-provider: ollama
-baseUrl: http://localhost:11434
-model: qwen2.5-coder:latest
+provider: anthropic
+model: claude-sonnet-4-6
 mode: yolo
 
 session:
@@ -8,5 +7,5 @@ session:
   saveDir: .agent/sessions
 
 logging:
-  level: info
+  level: debug
   file: .agent/logs/agent.log

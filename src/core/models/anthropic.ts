@@ -7,6 +7,7 @@ import { withRetry } from '@/infra/errors'
 interface Config {
   apiKey: string
   model: string
+  baseUrl?: string
 }
 
 export class AnthropicAdapter implements ModelAdapter {
@@ -20,7 +21,8 @@ export class AnthropicAdapter implements ModelAdapter {
 
   constructor(private config: Config) {
     this.client = new Anthropic({
-      apiKey: config.apiKey
+      apiKey: config.apiKey,
+      ...(config.baseUrl && { baseURL: config.baseUrl })
     })
   }
 
@@ -208,7 +210,12 @@ Available tools: bash, read, write, edit, glob, grep, ls, cp, mv, rm`
       }
     } catch (error: any) {
       logger.error('Streaming API call failed', { error: error.message })
-      throw error
+      const { AgentError, ErrorCode } = await import('@/infra/errors')
+      const httpStatus = error?.status ?? error?.statusCode
+      let errorCode = ErrorCode.API_ERROR
+      if (httpStatus === 429) errorCode = ErrorCode.RATE_LIMIT
+      else if (error.message?.includes('network')) errorCode = ErrorCode.NETWORK_ERROR
+      throw new AgentError(errorCode, error.message, {}, true)
     }
   }
 }

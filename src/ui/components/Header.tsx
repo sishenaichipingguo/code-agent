@@ -9,20 +9,28 @@ interface HeaderProps {
 
 export function Header({ model, mode, session }: HeaderProps) {
   return (
-    <Box borderStyle="single" paddingX={1}>
-      <Text bold color="cyan">Code Agent v0.1.0</Text>
-      <Text> | </Text>
-      <Text>Model: {model}</Text>
-      <Text> | </Text>
-      <Text color={mode === 'yolo' ? 'yellow' : 'green'}>
-        Mode: {mode.toUpperCase()}
-      </Text>
-      {session && (
-        <>
-          <Text> | </Text>
-          <Text dimColor>Session: {session.slice(0, 12)}</Text>
-        </>
-      )}
+    <Box flexDirection="column" paddingBottom={1}>
+      <Box>
+        <Text bold color="cyan">▲ Code Agent</Text>
+        <Text dimColor> v0.1.0</Text>
+      </Box>
+      <Box>
+        <Text dimColor>Model: </Text>
+        <Text>{model}</Text>
+        <Text dimColor> · </Text>
+        <Text color={mode === 'yolo' ? 'yellow' : 'green'}>
+          {mode.toUpperCase()}
+        </Text>
+        {session && (
+          <>
+            <Text dimColor> · </Text>
+            <Text dimColor>{session.slice(0, 8)}</Text>
+          </>
+        )}
+      </Box>
+      <Box>
+        <Text dimColor>{'─'.repeat(80)}</Text>
+      </Box>
     </Box>
   )
 }
