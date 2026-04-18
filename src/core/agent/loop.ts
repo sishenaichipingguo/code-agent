@@ -18,7 +18,11 @@ export interface AgentContext {
   initialMessages?: Array<{ role: 'user' | 'assistant'; content: any }>
   sessionManager?: SessionManager
   hooks?: HookManager
-  onChunk?: (chunk: { type: string; content?: string }) => void
+  onChunk?: (chunk:
+    | { type: 'text'; content: string }
+    | { type: 'tool_start'; name: string; input: string }
+    | { type: 'tool_end'; name: string; duration: number; result: string; error?: string }
+  ) => void
 }
 
 interface Message {
