@@ -6,6 +6,8 @@ export type HookEvent =
   | 'pre-compress'
   | 'post-compress'
   | 'post-sampling'
+  | 'user-prompt-submit'  // 用户提交 prompt 时触发，用于记忆系统初始化
+  | 'post-tool-use'       // 工具执行完成后触发，用于记录 observations
 
 export type OnError = 'warn' | 'abort' | 'ignore'
 

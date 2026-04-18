@@ -56,6 +56,13 @@ export class AgentLoop {
     try {
       await this.context.hooks?.fire('session-start', hookEnv)
 
+      // Trigger user-prompt-submit hook for memory system initialization
+      await this.context.hooks?.fire('user-prompt-submit', {
+        ...hookEnv,
+        USER_PROMPT: userMessage,
+        SESSION_ID: this.context.sessionManager?.getCurrentSession()?.id || 'unknown'
+      })
+
       let turn = 0
       while (true) {
         turn++
@@ -194,6 +201,15 @@ export class AgentLoop {
         const resultStr = typeof result === 'string' ? result : JSON.stringify(result)
 
         this.context.onChunk?.({ type: 'tool_end', name: tool.name, duration, result: resultStr })
+
+        // Trigger post-tool-use hook for recording observation
+        await this.context.hooks?.fire('post-tool-use', {
+          AGENT_CWD: process.cwd(),
+          TOOL_NAME: tool.name,
+          TOOL_INPUT: JSON.stringify(tool.input),
+          TOOL_RESULT: resultStr.slice(0, 10000), // Limit size to avoid env var overflow
+          SESSION_ID: this.context.sessionManager?.getCurrentSession()?.id || 'unknown'
+        })
 
         return { id: tool.id, result }
       } catch (error: any) {

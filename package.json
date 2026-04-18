@@ -10,6 +10,8 @@
   "scripts": {
     "dev": "bun run src/cli/index.ts",
     "dev:node": "tsx src/cli/index.ts",
+    "dev:worker": "bun run src/worker/server.ts",
+    "memory:view": "bun run scripts/view-memory.ts",
     "build": "bun build src/cli/index.ts --outdir=dist --target=bun",
     "build:binary": "bun build src/cli/index.ts --compile --outfile=dist/agent",
     "test": "bun test",
@@ -20,6 +22,8 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
     "glob": "^11.0.0",
     "gray-matter": "^4.0.3",
     "ink": "^5.2.1",
@@ -30,6 +34,8 @@
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
     "@types/react": "^18.3.0",
     "tsx": "^4.21.0",
     "typescript": "^5.9.0"

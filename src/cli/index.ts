@@ -27,12 +27,14 @@ Options:
   -r, --resume            Resume last session
   -v, --verbose           Verbose output
   --ui                    Interactive UI mode
+  --with-memory           Enable memory system (auto-starts Worker Service)
   --mcp-serve             Start as MCP server
   --port <port>           MCP server port
 
 Examples:
   agent "Create a hello.txt file"
   agent --mode safe "Delete old files"
+  agent --with-memory "Refactor auth.ts"
   agent --ui
   `)
   process.exit(0)
@@ -67,8 +69,8 @@ if (args.mcpServe) {
   // Event loop keeps the process alive (stdio: stdin open; http: server listening)
 }
 
-// UI mode
-if (args.ui) {
+// UI mode: explicit --ui flag, or no message provided (interactive by default)
+if (args.ui || (!args.message && !args.mcpServe)) {
   if (mode === 'yolo') {
     const { runYoloUI } = await import('./yolo-ui')
     await runYoloUI(args)
