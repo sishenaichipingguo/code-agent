@@ -178,76 +178,30 @@ export class AgentLoop {
     })
 
     const runTool = async (tool: any) => {
-      const toolDef = this.context.tools.get(tool.name)
-      const description = toolDef?.description || tool.name
+      const startTime = Date.now()
+
+      this.context.onChunk?.({
+        type: 'tool_start',
+        name: tool.name,
+        input: tool.input ? JSON.stringify(tool.input).slice(0, 120) : ''
+      })
 
       try {
-        // Header with tool name and description
-        process.stderr.write(`\n┌─ ${tool.name}\n`)
-        if (description !== tool.name) {
-          process.stderr.write(`│  ${description}\n`)
-        }
-
-        // Format and display input parameters
-        if (tool.input && Object.keys(tool.input).length > 0) {
-          process.stderr.write(`│\n`)
-          for (const [key, value] of Object.entries(tool.input)) {
-            const displayValue = this.formatValue(value)
-            process.stderr.write(`│  ${key}: ${displayValue}\n`)
-          }
-        }
-
-        process.stderr.write(`│\n│  ⏳ Executing...\n`)
-
-        const startTime = Date.now()
         const result = await metrics.measure('tool-execution', () =>
           this.context.tools.execute(tool.name, tool.input, this.context.permissionContext)
         )
         const duration = Date.now() - startTime
+        const resultStr = typeof result === 'string' ? result : JSON.stringify(result)
 
-        // Success output
-        process.stderr.write(`│  ✓ Completed in ${duration}ms\n`)
-
-        // Format and display result (truncate if too long)
-        const resultStr = typeof result === 'string' ? result : JSON.stringify(result, null, 2)
-        if (resultStr.length > 500) {
-          const preview = resultStr.slice(0, 500)
-          const lines = preview.split('\n').length
-          process.stderr.write(`│\n│  Result (${resultStr.length} chars, showing first 500):\n`)
-          preview.split('\n').forEach(line => {
-            process.stderr.write(`│  ${line}\n`)
-          })
-          process.stderr.write(`│  ... (truncated)\n`)
-        } else if (resultStr.length > 0) {
-          process.stderr.write(`│\n│  Result:\n`)
-          resultStr.split('\n').forEach(line => {
-            process.stderr.write(`│  ${line}\n`)
-          })
-        }
-
-        process.stderr.write(`└─\n`)
+        this.context.onChunk?.({ type: 'tool_end', name: tool.name, duration, result: resultStr })
 
         return { id: tool.id, result }
       } catch (error: any) {
+        const duration = Date.now() - startTime
         const { AgentError } = await import('@/infra/errors')
+        const errorMsg = error instanceof AgentError ? error.toUserMessage() : (error.message || String(error))
 
-        process.stderr.write(`│  ✗ Failed\n`)
-        process.stderr.write(`│\n`)
-
-        if (error instanceof AgentError) {
-          process.stderr.write(`│  ❌ ${error.toUserMessage()}\n`)
-          const suggestion = error.getSuggestion()
-          if (suggestion) {
-            process.stderr.write(`│  💡 ${suggestion}\n`)
-          }
-        } else {
-          const errorMsg = error.message || String(error)
-          errorMsg.split('\n').forEach(line => {
-            process.stderr.write(`│  ${line}\n`)
-          })
-        }
-
-        process.stderr.write(`└─\n`)
+        this.context.onChunk?.({ type: 'tool_end', name: tool.name, duration, result: '', error: errorMsg })
 
         this.context.logger.error('Tool execution failed', { tool: tool.name, error: error.message })
         return { id: tool.id, error: error.message }
@@ -296,8 +250,6 @@ export class AgentLoop {
       const completedTools = new Map<number, any>()
       let hasTools = false
       let inputTokens: number | undefined
-
-      process.stderr.write('\n')
 
       for await (const chunk of stream) {
         if (chunk.type === 'text' && chunk.content) {
