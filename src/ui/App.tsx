@@ -4,6 +4,8 @@ import { Header } from './components/Header'
 import { MessageList } from './components/MessageList'
 import { InputBox } from './components/InputBox'
 import { StatusBar } from './components/StatusBar'
+import { ToolActivity } from './components/ToolActivity'
+import type { ToolEvent } from './components/ToolActivity'
 import { useKeyboard } from './hooks/useKeyboard'
 import { CompletionEngine } from '@/core/completion/engine'
 import { FilePathCompletionProvider } from '@/core/completion/providers/file-path'
@@ -22,6 +24,7 @@ interface AppProps {
 export function App({ model, mode, onMessage }: AppProps) {
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([])
   const [isProcessing, setIsProcessing] = useState(false)
+  const [toolEvents, setToolEvents] = useState<ToolEvent[]>([])
   const [completions, setCompletions] = useState<Completion[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [historyManager] = useState(() => new HistoryManager())
@@ -66,7 +69,18 @@ export function App({ model, mode, onMessage }: AppProps) {
 
     try {
       for await (const chunk of onMessage(text)) {
+        if (chunk.type === 'tool_start') {
+          setToolEvents(prev => [...prev, { name: chunk.name, status: 'running' }])
+        }
+        if (chunk.type === 'tool_end') {
+          setToolEvents(prev => prev.map(e =>
+            e.name === chunk.name && e.status === 'running'
+              ? { ...e, status: chunk.error ? 'error' : 'done', duration: chunk.duration, summary: (chunk.error ?? chunk.result).slice(0, 60) }
+              : e
+          ))
+        }
         if (chunk.type === 'text' && chunk.content) {
+          setToolEvents([])
           assistantContent += chunk.content
           setMessages(prev => {
             const last = prev[prev.length - 1]
@@ -91,6 +105,7 @@ export function App({ model, mode, onMessage }: AppProps) {
     <Box flexDirection="column" height="100%">
       <Header model={model} mode={mode} />
       <MessageList messages={messages} />
+      <ToolActivity events={toolEvents} />
       <InputBox
         onSubmit={handleSubmit}
         disabled={isProcessing}
