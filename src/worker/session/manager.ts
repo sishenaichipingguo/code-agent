@@ -1,6 +1,7 @@
 import type { ActiveSession, QueuedMessage } from '../types'
 import { SQLiteManager } from '../db/sqlite'
 import { SDKAgent } from '../agents/observer'
+import type { ChromaManager } from '../embedding/chroma'
 
 export class SessionManager {
   private activeSessions = new Map<string, ActiveSession>()
@@ -8,7 +9,8 @@ export class SessionManager {
 
   constructor(
     private db: SQLiteManager,
-    private agent: SDKAgent
+    private agent: SDKAgent,
+    private chroma?: ChromaManager
   ) {}
 
   async initSession(params: {
@@ -188,12 +190,19 @@ export class SessionManager {
 
       const parsed = this.agent.parseObservation(response)
       if (parsed) {
-        this.db.createObservation({
+        const observation = this.db.createObservation({
           sessionId: session.sessionDbId,
           type: parsed.type,
           content: parsed.content,
-          metadata: { source: 'init', prompt: message.prompt }
+          metadata: { source: 'init', prompt: message.prompt, project: session.project }
         })
+
+        // 添加到 ChromaDB
+        if (this.chroma) {
+          await this.chroma.addObservation(observation).catch(err => {
+            console.error('Failed to add observation to ChromaDB:', err.message)
+          })
+        }
       }
     } catch (error: any) {
       // Log error but don't throw - memory system should not block main flow
@@ -214,16 +223,24 @@ export class SessionManager {
 
       const parsed = this.agent.parseObservation(response)
       if (parsed) {
-        this.db.createObservation({
+        const observation = this.db.createObservation({
           sessionId: session.sessionDbId,
           type: parsed.type,
           content: parsed.content,
           metadata: {
             source: 'tool_call',
             toolName: message.toolName,
-            toolInput: message.toolInput
+            toolInput: message.toolInput,
+            project: session.project
           }
         })
+
+        // 添加到 ChromaDB
+        if (this.chroma) {
+          await this.chroma.addObservation(observation).catch(err => {
+            console.error('Failed to add observation to ChromaDB:', err.message)
+          })
+        }
       }
     } catch (error: any) {
       // Log error but don't throw - memory system should not block main flow

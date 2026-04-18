@@ -3,6 +3,8 @@ import cors from 'cors'
 import { SQLiteManager } from './db/sqlite'
 import { SDKAgent } from './agents/observer'
 import { SessionManager } from './session/manager'
+import { ChromaManager } from './embedding/chroma'
+import { initEmbeddingModel } from './embedding/generator'
 import type {
   SessionInitRequest,
   SessionInitResponse,
@@ -14,7 +16,9 @@ import type {
   SessionCompleteResponse,
   SessionStatusResponse,
   SearchRequest,
-  SearchResponse
+  SearchResponse,
+  RecallRequest,
+  RecallResponse
 } from './types'
 import { homedir } from 'os'
 import { join } from 'path'
@@ -36,7 +40,27 @@ app.use(express.json({ limit: '10mb' }))
 // Initialize core components
 const db = new SQLiteManager(DATA_DIR)
 const agent = new SDKAgent(ANTHROPIC_API_KEY, WORKER_MODEL)
-const sessionManager = new SessionManager(db, agent)
+const chroma = new ChromaManager(DATA_DIR)
+
+// Initialize ChromaDB and embedding model
+let isReady = false
+;(async () => {
+  try {
+    console.log('🔄 Initializing embedding model...')
+    await initEmbeddingModel()
+
+    console.log('🔄 Initializing ChromaDB...')
+    await chroma.init()
+
+    isReady = true
+    console.log('✅ Memory system fully initialized')
+  } catch (error: any) {
+    console.error('❌ Failed to initialize memory system:', error.message)
+    process.exit(1)
+  }
+})()
+
+const sessionManager = new SessionManager(db, agent, chroma)
 
 // ============ Session Routes ============
 
@@ -179,6 +203,72 @@ app.get('/api/search', async (req, res) => {
     res.status(500).json({ error: error.message })
   }
 })
+
+// ============ Recall Routes ============
+
+app.post('/api/recall', async (req, res) => {
+  try {
+    if (!isReady) {
+      return res.status(503).json({ error: 'Memory system not ready yet' })
+    }
+
+    const body = req.body as RecallRequest
+
+    // 使用 ChromaDB 进行语义搜索
+    const results = await chroma.searchSimilar(body.query, {
+      project: body.project,
+      limit: body.limit || 10,
+      minScore: 0.3
+    })
+
+    // 格式化为结构化文本
+    const formattedMemories = formatMemoriesForPrompt(results)
+
+    res.json({
+      memories: results,
+      formattedText: formattedMemories,
+      count: results.length
+    } as RecallResponse)
+  } catch (error: any) {
+    console.error('Recall error:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+function formatMemoriesForPrompt(memories: Array<{
+  content: string
+  type: string
+  createdAt: number
+  metadata: any
+  score: number
+}>): string {
+  if (memories.length === 0) {
+    return ''
+  }
+
+  const lines: string[] = ['## Relevant Past Context', '']
+
+  // 按日期分组
+  const byDate = new Map<string, typeof memories>()
+  for (const mem of memories) {
+    const date = new Date(mem.createdAt).toISOString().split('T')[0]
+    if (!byDate.has(date)) {
+      byDate.set(date, [])
+    }
+    byDate.get(date)!.push(mem)
+  }
+
+  // 格式化输出
+  for (const [date, mems] of byDate) {
+    lines.push(`From session on ${date}:`)
+    for (const mem of mems) {
+      lines.push(`- [${mem.type}] ${mem.content}`)
+    }
+    lines.push('')
+  }
+
+  return lines.join('\n')
+}
 
 // ============ Health Check ============
 

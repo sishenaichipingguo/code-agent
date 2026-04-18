@@ -18,6 +18,7 @@ export interface AgentContext {
   initialMessages?: Array<{ role: 'user' | 'assistant'; content: any }>
   sessionManager?: SessionManager
   hooks?: HookManager
+  memoryRecallFn?: (query: string, project?: string) => Promise<string>
   onChunk?: (chunk:
     | { type: 'text'; content: string }
     | { type: 'tool_start'; name: string; input: string }
@@ -63,6 +64,24 @@ export class AgentLoop {
         SESSION_ID: this.context.sessionManager?.getCurrentSession()?.id || 'unknown'
       })
 
+      // Recall relevant memories from past sessions
+      let recalledMemories = ''
+      if (this.context.memoryRecallFn) {
+        try {
+          recalledMemories = await this.context.memoryRecallFn(userMessage)
+          if (recalledMemories) {
+            this.context.logger.debug('Recalled memories', { length: recalledMemories.length })
+          }
+        } catch (error: any) {
+          this.context.logger.warn('Memory recall failed', { error: error.message })
+        }
+      }
+
+      // Build dynamic system prompt with recalled memories
+      const dynamicSystemPrompt = recalledMemories
+        ? `${this.context.systemPrompt}\n\n${recalledMemories}`
+        : this.context.systemPrompt
+
       let turn = 0
       while (true) {
         turn++
@@ -70,7 +89,7 @@ export class AgentLoop {
           model: this.context.model.name,
           messages,
           stream: !!this.context.streaming,
-          system: this.context.systemPrompt
+          system: dynamicSystemPrompt
         }
 
         this.context.logger.debug(`Turn ${turn}: sending ${messages.length} messages`, {

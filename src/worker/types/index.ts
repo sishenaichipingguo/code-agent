@@ -168,3 +168,25 @@ export interface SemanticContextResponse {
   additionalContext: string
   observations: Observation[]
 }
+
+// ============ Recall API ============
+
+export interface RecallRequest {
+  query: string
+  project?: string
+  limit?: number
+}
+
+export interface RecallResponse {
+  memories: Array<{
+    id: number
+    content: string
+    type: string
+    sessionId: number
+    createdAt: number
+    metadata: any
+    score: number
+  }>
+  formattedText: string
+  count: number
+}

@@ -12,6 +12,9 @@
     "dev:node": "tsx src/cli/index.ts",
     "dev:worker": "bun run src/worker/server.ts",
     "memory:view": "bun run scripts/view-memory.ts",
+    "memory:test": "bun run scripts/test-cross-session.ts",
+    "memory:migrate": "bun run scripts/migrate-to-chroma.ts",
+    "memory:test-phase2": "bun run scripts/test-phase2.ts",
     "build": "bun build src/cli/index.ts --outdir=dist --target=bun",
     "build:binary": "bun build src/cli/index.ts --compile --outfile=dist/agent",
     "test": "bun test",
@@ -22,6 +25,8 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@xenova/transformers": "^2.17.2",
+    "chromadb": "^3.4.3",
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "glob": "^11.0.0",

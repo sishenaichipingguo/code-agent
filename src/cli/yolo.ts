@@ -182,6 +182,34 @@ export async function runYolo(args: Args) {
   const systemPrompt = await new SystemPromptBuilder(process.cwd(), memoryMgr, sessionStore, teamStoreMgr).build()
   logger.debug('System prompt built', { length: systemPrompt.length })
 
+  // Create memory recall function if worker is available
+  let memoryRecallFn: ((query: string, project?: string) => Promise<string>) | undefined
+  if (workerManager) {
+    memoryRecallFn = async (query: string, project?: string) => {
+      try {
+        const response = await fetch(`http://localhost:${workerManager.getPort()}/api/recall`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query,
+            project: project || config.project || 'code-agent',
+            limit: 10
+          })
+        })
+
+        if (!response.ok) {
+          throw new Error(`Recall API failed: ${response.statusText}`)
+        }
+
+        const data = await response.json()
+        return data.formattedText || ''
+      } catch (error: any) {
+        logger.warn('Memory recall failed', { error: error.message })
+        return ''
+      }
+    }
+  }
+
   const loop = new AgentLoop({
     model,
     tools,
@@ -192,7 +220,8 @@ export async function runYolo(args: Args) {
     systemPrompt,
     initialMessages,
     sessionManager,
-    hooks: hookManager
+    hooks: hookManager,
+    memoryRecallFn
   })
 
   tools.hooks = hookManager
