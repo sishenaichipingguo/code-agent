@@ -59,6 +59,7 @@ export function App({ model, mode, onMessage }: AppProps) {
 
   const handleSubmit = async (text: string) => {
     setIsProcessing(true)
+    setToolEvents([])
     setMessages(prev => [...prev, { role: 'user', content: text }])
 
     // Add to history
@@ -80,7 +81,6 @@ export function App({ model, mode, onMessage }: AppProps) {
           ))
         }
         if (chunk.type === 'text' && chunk.content) {
-          setToolEvents([])
           assistantContent += chunk.content
           setMessages(prev => {
             const last = prev[prev.length - 1]
