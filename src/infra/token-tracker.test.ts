@@ -19,8 +19,8 @@ describe('TokenTracker', () => {
   })
 
   it('accumulates token counts correctly', () => {
-    tracker.track('claude-sonnet-4', 100, 50)
-    tracker.track('claude-sonnet-4', 200, 80)
+    tracker.track('claude-sonnet-4-6', 100, 50)
+    tracker.track('claude-sonnet-4-6', 200, 80)
 
     const usage = tracker.getUsage()
     expect(usage.inputTokens).toBe(300)
@@ -28,9 +28,9 @@ describe('TokenTracker', () => {
     expect(usage.totalTokens).toBe(430)
   })
 
-  it('calculates cost for claude-sonnet-4', () => {
+  it('calculates cost for claude-sonnet-4-6', () => {
     // input: 3/1M, output: 15/1M
-    tracker.track('claude-sonnet-4', 1_000_000, 1_000_000)
+    tracker.track('claude-sonnet-4-6', 1_000_000, 1_000_000)
     const usage = tracker.getUsage()
     expect(usage.cost).toBeCloseTo(18, 4) // 3 + 15
   })
@@ -51,7 +51,7 @@ describe('TokenTracker', () => {
 
   it('includes cache creation and read tokens in cost', () => {
     // cacheWrite: 3.75/1M, cacheRead: 0.3/1M for sonnet-4
-    tracker.track('claude-sonnet-4', 0, 0, 1_000_000, 1_000_000)
+    tracker.track('claude-sonnet-4-6', 0, 0, 1_000_000, 1_000_000)
     const usage = tracker.getUsage()
     expect(usage.cacheCreationTokens).toBe(1_000_000)
     expect(usage.cacheReadTokens).toBe(1_000_000)
@@ -66,14 +66,14 @@ describe('TokenTracker', () => {
   })
 
   it('tracks lastInputTokens correctly', () => {
-    tracker.track('claude-sonnet-4', 100, 50)
+    tracker.track('claude-sonnet-4-6', 100, 50)
     expect(tracker.getLastInputTokens()).toBe(100)
-    tracker.track('claude-sonnet-4', 200, 80)
+    tracker.track('claude-sonnet-4-6', 200, 80)
     expect(tracker.getLastInputTokens()).toBe(200)
   })
 
   it('getUsage returns a copy, not a reference', () => {
-    tracker.track('claude-sonnet-4', 100, 50)
+    tracker.track('claude-sonnet-4-6', 100, 50)
     const usage = tracker.getUsage()
     usage.inputTokens = 9999
     expect(tracker.getUsage().inputTokens).toBe(100)

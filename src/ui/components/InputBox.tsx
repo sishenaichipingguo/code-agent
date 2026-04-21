@@ -54,21 +54,25 @@ export function InputBox({ onSubmit, disabled, completions = [], onRequestComple
   return (
     <Box flexDirection="column">
       {showCompletions && completions.length > 0 && (
-        <Box flexDirection="column" borderStyle="round" paddingX={1}>
+        <Box flexDirection="column" paddingX={1} paddingBottom={1}>
+          <Box paddingBottom={1}>
+            <Text dimColor>Suggestions (↑↓ to select, ⏎ to apply, esc to cancel):</Text>
+          </Box>
           {completions.slice(0, 5).map((c, i) => (
-            <Box key={i} backgroundColor={i === selectedCompletion ? 'blue' : undefined}>
-              <Text color={i === selectedCompletion ? 'white' : 'gray'}>
+            <Box key={i} paddingLeft={1}>
+              <Text color={i === selectedCompletion ? 'cyan' : 'gray'}>
+                {i === selectedCompletion ? '▸ ' : '  '}
                 {c.display}
               </Text>
               {c.description && (
-                <Text dimColor> - {c.description}</Text>
+                <Text dimColor> · {c.description}</Text>
               )}
             </Box>
           ))}
         </Box>
       )}
-      <Box borderStyle="single" paddingX={1}>
-        <Text color="green">&gt; </Text>
+      <Box paddingX={0} paddingY={0}>
+        <Text color="cyan" bold>❯ </Text>
         <TextInput
           value={value}
           onChange={setValue}

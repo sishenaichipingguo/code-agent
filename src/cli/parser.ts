@@ -10,15 +10,23 @@ export interface Args {
   session?: string    // load specific session id and continue
   mcpServe?: boolean  // start as standalone MCP server
   port?: number       // port for MCP HTTP transport
+  withMemory?: boolean // enable memory system with Worker Service
+  help?: boolean      // show help message
+  version?: boolean   // show version
+  invalidArgs?: string[]  // track invalid arguments
 }
 
 export function parseArgs(argv: string[]): Args {
-  const args: Args = {}
+  const args: Args = { invalidArgs: [] }
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
 
-    if (arg === '--mode' && argv[i + 1]) {
+    if (arg === '--help' || arg === '-h') {
+      args.help = true
+    } else if (arg === '--version' || arg === '-V') {
+      args.version = true
+    } else if (arg === '--mode' && argv[i + 1]) {
       args.mode = argv[++i] as 'yolo' | 'safe'
     } else if (arg === '--model' && argv[i + 1]) {
       args.model = argv[++i]
@@ -36,7 +44,12 @@ export function parseArgs(argv: string[]): Args {
       args.mcpServe = true
     } else if (arg === '--port' && argv[i + 1]) {
       args.port = parseInt(argv[++i], 10)
-    } else if (!arg.startsWith('-')) {
+    } else if (arg === '--with-memory') {
+      args.withMemory = true
+    } else if (arg.startsWith('-')) {
+      // Unknown flag
+      args.invalidArgs!.push(arg)
+    } else {
       args.message = arg
     }
   }

@@ -14,7 +14,7 @@ export class AgentDispatcher {
   constructor(modelConfig?: SubAgentModelConfig, backendType?: BackendType) {
     this.modelConfig = modelConfig ?? {
       provider: process.env.SUBAGENT_PROVIDER ?? 'anthropic',
-      model: process.env.AGENT_MODEL ?? 'claude-sonnet-4',
+      model: process.env.AGENT_MODEL ?? 'claude-sonnet-4-6',
       apiKey: process.env.ANTHROPIC_API_KEY,
       baseUrl: process.env.AGENT_BASE_URL
     }

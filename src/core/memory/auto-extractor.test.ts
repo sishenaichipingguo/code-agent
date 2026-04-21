@@ -22,13 +22,13 @@ const extracted = JSON.stringify([
 ])
 
 const mockModelExtracts = {
-  name: 'claude-sonnet-4',
+  name: 'claude-sonnet-4-6',
   capabilities: { tools: false, streaming: false, vision: false },
   chat: mock(async () => ({ type: 'text' as const, content: extracted }))
 }
 
 const mockModelEmpty = {
-  name: 'claude-sonnet-4',
+  name: 'claude-sonnet-4-6',
   capabilities: { tools: false, streaming: false, vision: false },
   chat: mock(async () => ({ type: 'text' as const, content: '[]' }))
 }
