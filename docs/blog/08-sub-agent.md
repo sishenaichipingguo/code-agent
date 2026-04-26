@@ -1,20 +1,48 @@
 # Sub-Agent —— Agent 调用 Agent
 
-## 概念
+## 一、问题背景：单个 Agent 的局限
 
-单个 agent 有局限：context window 有限，复杂任务容易混乱，长任务容易跑偏。
+单个 agent 有几个根本性的局限：
+
+**Context window 有限**：复杂任务需要大量上下文，但 context window 有上限。一个需要分析整个代码库的任务，可能需要的上下文远超单个 agent 能处理的范围。
+
+**任务容易混乱**：当一个 agent 同时处理多个子任务时，不同子任务的上下文会互相干扰。agent 可能在处理子任务 A 时，被子任务 B 的上下文"污染"，导致错误。
+
+**无法并行**：单个 agent 是串行的——它必须完成一个工具调用才能开始下一个。如果两个子任务互相独立，串行执行会浪费时间。
+
+**工具权限难以细化**：主 agent 可能有很多工具（包括危险的工具如 `bash`、`rm`），但某些子任务只需要读取权限。给子任务完整的工具集是不必要的风险。
 
 解法是**任务分解**：主 agent 把大任务拆成子任务，派发给专门的子 agent 执行，收集结果后汇总。
 
 类比：项目经理（主 agent）把需求拆给前端工程师和后端工程师（子 agent），最后整合交付。
 
-这种模式的好处：
-- 每个子 agent 有独立的 context，不互相干扰
-- 子任务可以并行执行，速度更快
-- 主 agent 只关心协调，不关心细节
-- 每个子 agent 可以有不同的工具集和权限
+## 二、核心矛盾：隔离 vs 通信
 
-## 项目实现
+Sub-agent 模式的核心矛盾是：**你希望子 agent 完全隔离（避免干扰），但又需要它们能和主 agent 通信（传递结果）。**
+
+这个矛盾有几个维度：
+
+**进程隔离 vs 数据共享**：子 agent 作为独立进程运行，有完全隔离的内存空间。但主 agent 需要获取子 agent 的结果。如何在进程边界传递数据？
+
+**同步 vs 异步**：主 agent 等待子 agent 完成（同步）会阻塞主 agent；不等待（异步）需要额外的机制来收取结果。
+
+**权限继承 vs 权限隔离**：子 agent 应该继承主 agent 的所有权限，还是只有最小权限？继承更方便，但违反最小权限原则。
+
+## 三、设计空间：子 agent 的协调模式
+
+子 agent 可以用几种不同的方式协调：
+
+**Fan-out / Fan-in（扇出/扇入）**：主 agent 把任务分发给多个子 agent（扇出），等所有子 agent 完成后汇总结果（扇入）。适合可以并行的独立子任务。
+
+**Pipeline（流水线）**：子 agent A 的输出是子 agent B 的输入，形成流水线。适合有依赖关系的顺序任务。
+
+**DAG（有向无环图）**：更复杂的依赖关系，某些子 agent 需要等待多个前置子 agent 完成。适合复杂的工作流。
+
+**Recursive（递归）**：子 agent 可以再派发子子 agent，形成树状结构。适合需要递归分解的任务（比如分析一个大型代码库）。
+
+这个项目实现了 Fan-out / Fan-in 模式，通过 `run_in_background=true` 和 `SendMessageTool` 实现异步并行。
+
+## 四、项目实现
 
 ### AgentTool：启动子 agent
 
@@ -100,6 +128,8 @@ process.stdout.write(JSON.stringify({ result: finalText }))
 
 这个约定贯穿整个项目：`AgentLoop` 里所有的进度输出都走 `stderr`，只有最终答案走 `stdout`。
 
+为什么不用其他通信方式（比如 IPC、共享内存）？因为进程间通过 stdout/stderr 通信是最简单、最通用的方式——不需要额外的依赖，任何语言都支持，而且天然支持流式输出。
+
 ### createRestricted()：给子 agent 最小权限
 
 子 agent 不需要主 agent 的全部工具。一个只负责分析代码的子 agent，只需要 `read`、`glob`、`grep`，不需要 `bash`、`write`、`rm`：
@@ -117,7 +147,33 @@ const subAgentLoop = new AgentLoop({
 
 `createRestricted()` 创建的受限注册表会继承原注册表的 hooks，所以 `pre-tool`、`post-tool` 等 hooks 在子 agent 里同样生效。
 
-## 动手练习
+这是**最小权限原则（Principle of Least Privilege）**的体现：每个组件只拥有完成其任务所需的最小权限。这减少了出错时的影响范围——即使子 agent 被恶意 prompt 控制，它也无法执行危险操作。
+
+## 五、边界条件和陷阱
+
+**子 agent 的错误处理**：如果子 agent 崩溃或超时，主 agent 需要能检测到并处理。`AgentDispatcher` 会捕获子进程的退出码，把错误信息作为结果返回给主 agent。
+
+**结果大小限制**：子 agent 的结果通过 stdout 传递，如果结果太大（比如分析了一个巨大的代码库），可能会超过进程通信的缓冲区限制。需要在子 agent 里对结果进行截断或摘要。
+
+**并行度控制**：如果主 agent 同时启动太多子 agent，可能会耗尽系统资源（内存、CPU、API 并发限制）。`AgentDispatcher` 需要有并发度控制。
+
+**循环调用**：子 agent 可以再派发子子 agent，但如果没有深度限制，可能会形成无限递归。需要在 `AgentDispatcher` 里限制最大嵌套深度。
+
+**记忆隔离的副作用**：子 agent 通过 `MEMORY_NAMESPACE` 隔离记忆，但这意味着子 agent 无法访问主 agent 的个人记忆（只能看到索引）。如果子 agent 需要用户偏好信息，需要在 prompt 里显式传递。
+
+## 六、与其他组件的关系
+
+Sub-agent 和记忆系统（第 6 篇）通过 `MEMORY_NAMESPACE` 协作：子 agent 有独立的记忆命名空间，避免污染主 agent 的记忆。
+
+Sub-agent 和 hooks 系统（第 9 篇）有继承关系：`createRestricted()` 创建的受限注册表继承了原注册表的 hooks，所以 hooks 在子 agent 里同样生效。
+
+Sub-agent 和权限模型（第 3 篇）紧密相关：子 agent 的工具集通过 `createRestricted()` 限制，这是权限模型在子 agent 场景的应用。
+
+Sub-agent 和多模型支持（第 7 篇）可以结合：不同的子 agent 可以使用不同的模型——主 agent 用 Claude Opus 做协调，子 agent 用 Haiku 做具体执行，降低成本。
+
+## 七、动手练习
+
+**练习 1：并行执行两个子任务**
 
 给主 agent 写一个 prompt，让它把任务分发给两个后台子 agent 并行执行：
 
@@ -130,6 +186,18 @@ const subAgentLoop = new AgentLoop({
 ```
 
 运行 `bun run dev --ui` 在 TUI 界面里观察两个子 agent 的执行过程——你会看到它们的工具调用实时出现在界面上，且两个子 agent 的输出是交错的（因为它们在并行执行）。
+
+**练习 2：观察权限隔离**
+
+修改 `AgentDispatcher`，让子 agent 只有 `read` 和 `glob` 工具，然后让主 agent 派发一个需要 `bash` 工具的子任务。观察子 agent 如何处理它没有权限的工具调用——它会报错，还是会尝试用其他方式完成任务？
+
+**练习 3：测试错误传播**
+
+故意让子 agent 的任务失败（比如让它读取一个不存在的文件），观察主 agent 如何处理子 agent 的错误——它会重试，还是会继续执行其他子任务？
+
+**练习 4：预测并行 vs 串行的性能差异**
+
+给主 agent 三个独立的分析任务，先用串行方式（一个接一个）执行，再用并行方式（`run_in_background=true`）执行，对比总耗时。这能让你直观感受到并行执行的性能优势。
 
 ---
 

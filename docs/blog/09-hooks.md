@@ -1,18 +1,50 @@
 # Hooks 系统 —— 不改核心代码的扩展点
 
-## 概念
+## 一、问题背景：扩展 Agent 行为的困境
 
 你想在每次工具执行后记录日志，或者在 agent 输出前做内容过滤，或者在会话开始时初始化一些状态。
 
 最直接的做法是改 `AgentLoop` 的源码。但这样每次升级都要重新合并你的修改，而且你的定制逻辑和核心逻辑混在一起，很难维护。
 
+这是软件工程里的经典问题：**如何在不修改核心代码的情况下扩展系统行为？**
+
+常见的解法有几种：
+- **继承（Inheritance）**：子类覆盖父类方法。但继承会创建紧耦合，而且 JavaScript/TypeScript 的单继承限制了灵活性。
+- **装饰器（Decorator）**：包装原有对象，在调用前后注入逻辑。比继承灵活，但需要修改调用方。
+- **事件系统（Event System）**：在关键节点发出事件，监听者注册处理函数。解耦彻底，但事件系统本身需要维护。
+- **Hooks（钩子）**：在生命周期的关键节点预留"插槽"，外部代码注册到插槽里执行。
+
 **Hooks** 是另一种思路：在 agent 生命周期的关键节点预留"插槽"，你往插槽里注册 shell 命令，agent 运行到那个节点时自动执行你的命令。核心代码不需要改，你的扩展逻辑独立存在。
 
 这和 git hooks 的思路完全一样——`pre-commit`、`post-merge` 都是这种模式。
 
-## 项目实现
+## 二、核心矛盾：灵活性 vs 安全性
 
-### 两种 Hook 类型
+Hooks 系统的核心矛盾是：**你希望 hooks 能做任何事（灵活），但 hooks 执行的是外部代码，可能影响 agent 的核心行为（风险）。**
+
+这个矛盾有几个维度：
+
+**执行权限**：hook 脚本以什么权限运行？如果 hook 脚本可以修改 agent 的工具输入，它实际上拥有了和 agent 相同的权限。
+
+**失败处理**：hook 脚本失败时怎么办？如果 hook 失败导致整个 agent 停止，那 hook 的可靠性要求和 agent 核心代码一样高，失去了"轻量扩展"的意义。
+
+**超时控制**：hook 脚本可能卡住（比如网络请求超时），如何防止 hook 卡住整个 agent？
+
+**数据修改**：有些 hook 只需要"观察"（记录日志），有些 hook 需要"修改"（内容过滤）。这两种需求的接口设计应该不同。
+
+## 三、设计空间：两种 Hook 类型
+
+解决"观察 vs 修改"的矛盾，这个项目设计了两种 hook 类型：
+
+**通知型（fire）**：hook 只是被通知"某件事发生了"，不能修改任何数据。适合日志记录、监控、通知等场景。
+
+**变换型（transform）**：hook 接收数据，可以修改后返回新数据。适合内容过滤、输入验证、数据转换等场景。
+
+这个区分很重要：通知型 hook 的失败不影响主流程（因为它不修改数据），而变换型 hook 的失败需要决策——是用原始数据继续，还是中止操作？
+
+## 四、项目实现
+
+### 两种 Hook 方法
 
 `src/core/hooks/manager.ts` 的 `HookManager` 有两种方法：
 
@@ -148,7 +180,31 @@ const timer = setTimeout(() => {
 
 超时后先发 `SIGTERM`，3 秒后如果还没退出再发 `SIGKILL`。这防止 hook 脚本卡住导致整个 agent 挂起。
 
-## 动手练习
+## 五、边界条件和陷阱
+
+**Hook 脚本的副作用**：hook 脚本可以做任何事——写文件、发网络请求、修改环境变量。这种灵活性也意味着 hook 脚本可能产生意外的副作用。需要谨慎设计 hook 脚本，避免它们影响 agent 的核心行为。
+
+**transform hook 的数据格式**：`transform` hook 通过 stdin/stdout 传递 JSON。如果脚本输出的 JSON 格式不对（比如缺少必要字段），`HookManager` 会保持原始数据不变。这是一个静默失败——你可能以为 hook 生效了，但实际上没有。
+
+**hook 执行顺序**：同一个事件可以注册多个 hook，它们按配置顺序依次执行。对于 `transform` hook，前一个 hook 的输出是后一个 hook 的输入。如果某个 hook 修改了数据，后续 hook 看到的是修改后的数据。
+
+**hook 和子 agent 的交互**：子 agent 通过 `createRestricted()` 创建的受限注册表继承了原注册表的 hooks。这意味着你在主 agent 里配置的 hooks 也会在子 agent 里生效。如果你的 hook 假设只有主 agent 会触发它，可能会产生意外行为。
+
+**安全性**：`pre-tool` hook 可以修改工具输入，这意味着恶意的 hook 脚本可以劫持工具调用。hook 脚本的来源需要可信。
+
+## 六、与其他组件的关系
+
+Hooks 系统和工具系统（第 2 篇）紧密集成：`pre-tool` 和 `post-tool` 事件在工具执行的前后触发，`ToolRegistry` 在执行工具时调用 `HookManager`。
+
+Hooks 系统和上下文压缩（第 5 篇）有直接交互：`pre-compress` 和 `post-compress` 事件让你可以在压缩前后注入逻辑。
+
+Hooks 系统和子 agent（第 8 篇）有继承关系：子 agent 的受限注册表继承了 hooks，所以 hooks 在子 agent 里同样生效。
+
+Hooks 系统是整个 agent 系统的"观测层"——通过 hooks，你可以在不修改核心代码的情况下，观察和修改 agent 的任何行为。
+
+## 七、动手练习
+
+**练习 1：记录 bash 命令历史**
 
 写一个 `pre-tool` hook，拦截所有 `bash` 工具调用并打印命令内容：
 
@@ -178,6 +234,33 @@ hooks:
 ```
 
 运行 agent 执行一些需要 bash 的任务，然后查看 `.agent/bash-history.log`，你会看到所有执行过的 bash 命令的完整记录。
+
+**练习 2：实现一个"危险命令拦截器"**
+
+修改上面的脚本，让它拦截包含 `rm -rf` 的 bash 命令，并在 payload 里把命令替换成 `echo "BLOCKED: rm -rf is not allowed"`。观察 agent 如何处理被拦截的命令。
+
+**练习 3：用 post-sampling 统计输出长度**
+
+写一个 `post-sampling` hook，记录每次模型输出的字符数：
+
+```python
+# scripts/track-output.py
+import json, sys
+
+payload = json.load(sys.stdin)
+text = payload.get('text', '')
+with open('.agent/output-stats.log', 'a') as f:
+    f.write(f"{len(text)}\n")
+
+# 不修改 payload，原样输出
+print(json.dumps(payload))
+```
+
+跑几个任务后，分析 `.agent/output-stats.log`，观察不同任务的输出长度分布。
+
+**练习 4：预测 hook 失败的影响**
+
+把一个 `pre-tool` hook 的 `onError` 设为 `abort`，然后故意让 hook 脚本失败（比如让它返回非零退出码）。观察 agent 的行为——工具调用是否被中止？agent 是否能继续执行其他任务？
 
 ---
 
