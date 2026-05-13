@@ -173,3 +173,11 @@ return allSafe ? Promise.all(tools.map(run)) : runSerial(tools)
 这也是为什么大部分套壳产品体验都很差：他们解决了 prompt 问题，把工程问题留给了用户的耐心去消化。
 
 代码开源在 GitHub，从零开始可读：[code-agent](https://github.com/your-handle/code-agent)。欢迎拍砖。
+
+---
+
+这四个判断里每一个都展开够再写一篇。后面的连载：
+
+1. [把 AI Agent 拆成两个进程：单进程方案我跑了一周才放弃](./blog-ai-agent-process-model.md) —— 进程模型为什么是 UX 决策
+2. [AI Agent 的权限不该写在框架里：每个工具自己说](./blog-ai-agent-permissions.md) —— 22 行的权限引擎
+3. [让工具自己声明并发安全：我把调度逻辑砍到一行](./blog-ai-agent-tool-dispatch.md) —— 调度器不应该知道工具语义
