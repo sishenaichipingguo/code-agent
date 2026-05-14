@@ -176,8 +176,10 @@ return allSafe ? Promise.all(tools.map(run)) : runSerial(tools)
 
 ---
 
-这四个判断里每一个都展开够再写一篇。后面的连载：
+这四个判断里每一个都展开够再写一篇。完整连载：
 
 1. [把 AI Agent 拆成两个进程：单进程方案我跑了一周才放弃](./blog-ai-agent-process-model.md) —— 进程模型为什么是 UX 决策
 2. [AI Agent 的权限不该写在框架里：每个工具自己说](./blog-ai-agent-permissions.md) —— 22 行的权限引擎
 3. [让工具自己声明并发安全：我把调度逻辑砍到一行](./blog-ai-agent-tool-dispatch.md) —— 调度器不应该知道工具语义
+4. [AI Agent 的记忆不是数据库问题，是信噪比问题](./blog-ai-agent-memory-system.md) —— 从关键词到语义召回的三个版本
+5. [用 shell 命令做 AI Agent 的插件系统](./blog-ai-agent-hooks.md) —— 为什么 Hook 不是函数调用
