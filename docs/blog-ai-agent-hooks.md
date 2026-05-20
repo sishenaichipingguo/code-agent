@@ -1,6 +1,6 @@
 # 用 shell 命令做 AI Agent 的插件系统：为什么 Hook 不是函数调用
 
-> 这是 [《写完一个 AI 编程助手之后，我才确定 prompt 工程不是重点》](./blog-ai-agent-from-scratch-v2.md) 系列的第六篇（最后一篇）。前五篇讲了进程模型、权限、并发调度、记忆系统。这一篇讲 Hook——整个项目里最"丑"但最有用的设计。
+> 这是 [《写完一个 AI 编程助手之后，我才确定 prompt 工程不是重点》](./blog-ai-agent-from-scratch-v2.md) 系列的第七篇（最后一篇）。前六篇讲了进程模型、权限、并发调度、上下文压缩、记忆系统。这一篇讲 Hook——整个项目里最"丑"但最有用的设计。
 
 Agent 需要插件系统。
 
@@ -265,6 +265,7 @@ async transform<T>(event: HookEvent, payload: T, env: Record<string, string>): P
 | [进程模型](./blog-ai-agent-process-model.md) | 阻塞操作 > 100ms 就拆进程 |
 | [权限系统](./blog-ai-agent-permissions.md) | 让工具自己说危不危险，框架只做仲裁 |
 | [并发调度](./blog-ai-agent-tool-dispatch.md) | 让工具自己声明并发安全，调度器一行搞定 |
+| [上下文压缩](./blog-ai-agent-context-compression.md) | 200K 也会满，四层兜底让 Agent 永不崩溃 |
 | [记忆系统](./blog-ai-agent-memory-system.md) | 记忆是信噪比问题，不是存储问题 |
 | Hook 系统（这篇） | 最笨的插件系统最耐用 |
 

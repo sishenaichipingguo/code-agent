@@ -181,5 +181,6 @@ return allSafe ? Promise.all(tools.map(run)) : runSerial(tools)
 1. [把 AI Agent 拆成两个进程：单进程方案我跑了一周才放弃](./blog-ai-agent-process-model.md) —— 进程模型为什么是 UX 决策
 2. [AI Agent 的权限不该写在框架里：每个工具自己说](./blog-ai-agent-permissions.md) —— 22 行的权限引擎
 3. [让工具自己声明并发安全：我把调度逻辑砍到一行](./blog-ai-agent-tool-dispatch.md) —— 调度器不应该知道工具语义
-4. [AI Agent 的记忆不是数据库问题，是信噪比问题](./blog-ai-agent-memory-system.md) —— 从关键词到语义召回的三个版本
-5. [用 shell 命令做 AI Agent 的插件系统](./blog-ai-agent-hooks.md) —— 为什么 Hook 不是函数调用
+4. [AI Agent 对话太长怎么办：三种压缩策略和一个自动兜底](./blog-ai-agent-context-compression.md) —— 上下文窗口管理
+5. [AI Agent 的记忆不是数据库问题，是信噪比问题](./blog-ai-agent-memory-system.md) —— 从关键词到语义召回的三个版本
+6. [用 shell 命令做 AI Agent 的插件系统](./blog-ai-agent-hooks.md) —— 为什么 Hook 不是函数调用

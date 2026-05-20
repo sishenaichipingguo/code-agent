@@ -1,6 +1,6 @@
 # AI Agent 的记忆不是数据库问题，是信噪比问题
 
-> 这是 [《写完一个 AI 编程助手之后，我才确定 prompt 工程不是重点》](./blog-ai-agent-from-scratch-v2.md) 系列的第五篇。前四篇讲了进程模型、权限、并发调度。这一篇讲记忆系统——我做了三个版本才做对。
+> 这是 [《写完一个 AI 编程助手之后，我才确定 prompt 工程不是重点》](./blog-ai-agent-from-scratch-v2.md) 系列的第五篇。前四篇讲了进程模型、权限、并发调度、[上下文压缩](./blog-ai-agent-context-compression.md)。这一篇讲记忆系统——我做了三个版本才做对。
 
 所有 AI Agent 框架都在讲 memory。LangChain 有 ConversationBufferMemory、ConversationSummaryMemory、VectorStoreRetrieverMemory……名字一个比一个长。
 

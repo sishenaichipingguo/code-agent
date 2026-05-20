@@ -1,6 +1,6 @@
 # 让工具自己声明并发安全：我把调度逻辑砍到一行
 
-> 这是 [《写完一个 AI 编程助手之后，我才确定 prompt 工程不是重点》](./blog-ai-agent-from-scratch-v2.md) 的第四篇，也是「工程问题决定 Agent 好坏」系列的最后一篇。前几篇讲了[进程模型](./blog-ai-agent-process-model.md)和[权限系统](./blog-ai-agent-permissions.md)，这一篇讲并发调度。
+> 这是 [《写完一个 AI 编程助手之后，我才确定 prompt 工程不是重点》](./blog-ai-agent-from-scratch-v2.md) 的第四篇。前几篇讲了[进程模型](./blog-ai-agent-process-model.md)和[权限系统](./blog-ai-agent-permissions.md)，这一篇讲并发调度。
 
 AI 经常一口气甩三个工具：
 
@@ -198,15 +198,8 @@ isConcurrencySafe: () => false
 
 写得越多 AI Agent 我越确信这件事。`prompt 工程`、`chain 抽象`、`memory 设计` 这些被各种框架包装的概念，本质上都是组件自我描述 + 钝调度的问题。一旦你把它从"框架的智能"改成"组件的诚实"，复杂度立刻塌一个数量级。
 
-四篇下来，整个 code-agent 项目的核心架构就讲完了。代码：[github.com/your-handle/code-agent](https://github.com/your-handle/code-agent)。
+代码：[github.com/your-handle/code-agent](https://github.com/your-handle/code-agent)。
 
 ---
 
-如果你也在写 AI Agent，欢迎拿这四篇当 checklist：
-
-- 你的副路径里有没有 100ms+ 的阻塞操作？拆 Worker。
-- 你的权限是不是写在框架里？挪到工具里。
-- 你的调度器知不知道工具的语义？让它别知道。
-- 你的工具默认值是不是乐观的？翻过来。
-
-每改对一个，Agent 的体感会跳一个台阶。
+下一篇讲 Agent 长对话的核心问题：**上下文窗口快满了怎么办**——三种压缩策略和一个自动兜底机制。
