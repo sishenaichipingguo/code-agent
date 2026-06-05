@@ -22,9 +22,11 @@
 </p>
 
 ```bash
-git clone https://github.com/sishenaichipingguo/code-agent && cd code-agent
-bun install && export ANTHROPIC_API_KEY=sk-...
-bun run dev "记住我用 2 空格缩进，偏好具名导出"
+# 安装（macOS / Linux）—— 下载预编译二进制，无需 Node/Bun
+curl -fsSL https://raw.githubusercontent.com/sishenaichipingguo/code-agent/main/install.sh | bash
+
+export ANTHROPIC_API_KEY=sk-...
+agent "记住我用 2 空格缩进，偏好具名导出"
 ```
 
 ## 为什么选 Code Agent？
@@ -52,20 +54,37 @@ bun run dev "记住我用 2 空格缩进，偏好具名导出"
 
 ## 快速开始
 
+### 安装（推荐）
+
+安装脚本会下载适配你平台的独立二进制——无需 Node 或 Bun：
+
 ```bash
-# 1. 克隆并安装（需要 Bun：https://bun.sh）
+curl -fsSL https://raw.githubusercontent.com/sishenaichipingguo/code-agent/main/install.sh | bash
+```
+
+也可以直接从 [Releases 页面](https://github.com/sishenaichipingguo/code-agent/releases) 下载二进制。Windows 用户在那里下载 `.zip`。macOS 二进制做了 ad-hoc 签名；若 Gatekeeper 仍然拦截，运行 `xattr -d com.apple.quarantine $(which agent)`。
+
+然后设置 Key 即可开始：
+
+```bash
+export ANTHROPIC_API_KEY=your_key_here
+
+agent "创建一个 hello.txt 文件"            # 默认 YOLO 模式
+agent --mode safe "重构 src/auth.ts"       # 对高风险操作要求审批
+```
+
+### 从源码构建
+
+需要 [Bun](https://bun.sh)：
+
+```bash
 git clone https://github.com/sishenaichipingguo/code-agent
 cd code-agent
 bun install
-
-# 2. 设置 API Key
-export ANTHROPIC_API_KEY=your_key_here
-
-# 3. 运行（默认 YOLO 模式）
 bun run dev "创建一个 hello.txt 文件"
 
-# Safe 模式会对高风险操作要求审批
-bun run dev --mode safe "重构 src/auth.ts"
+# 构建你自己的独立二进制
+bun run build:binary
 ```
 
 ## 记忆系统如何工作

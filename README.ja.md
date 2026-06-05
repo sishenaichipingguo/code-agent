@@ -22,9 +22,11 @@
 </p>
 
 ```bash
-git clone https://github.com/sishenaichipingguo/code-agent && cd code-agent
-bun install && export ANTHROPIC_API_KEY=sk-...
-bun run dev "インデントは2スペース、名前付きエクスポートを好むと覚えておいて"
+# インストール（macOS / Linux）— ビルド済みバイナリをダウンロード、Node/Bun 不要
+curl -fsSL https://raw.githubusercontent.com/sishenaichipingguo/code-agent/main/install.sh | bash
+
+export ANTHROPIC_API_KEY=sk-...
+agent "インデントは2スペース、名前付きエクスポートを好むと覚えておいて"
 ```
 
 ## なぜ Code Agent なのか？
@@ -52,20 +54,37 @@ bun run dev "インデントは2スペース、名前付きエクスポートを
 
 ## クイックスタート
 
+### インストール（推奨）
+
+インストーラーがプラットフォームに合ったスタンドアロンバイナリを取得します。Node も Bun も不要です。
+
 ```bash
-# 1. クローンしてインストール（Bun が必要：https://bun.sh）
+curl -fsSL https://raw.githubusercontent.com/sishenaichipingguo/code-agent/main/install.sh | bash
+```
+
+[Releases ページ](https://github.com/sishenaichipingguo/code-agent/releases) からバイナリを直接ダウンロードすることもできます。Windows ユーザーはそこで `.zip` を入手してください。macOS バイナリは ad-hoc 署名済みです。Gatekeeper がまだブロックする場合は `xattr -d com.apple.quarantine $(which agent)` を実行してください。
+
+あとはキーを設定するだけ。
+
+```bash
+export ANTHROPIC_API_KEY=your_key_here
+
+agent "hello.txt ファイルを作成して"          # デフォルトは YOLO モード
+agent --mode safe "src/auth.ts をリファクタして"  # 危険な操作に承認を要求
+```
+
+### ソースからビルド
+
+[Bun](https://bun.sh) が必要です。
+
+```bash
 git clone https://github.com/sishenaichipingguo/code-agent
 cd code-agent
 bun install
-
-# 2. API キーを設定
-export ANTHROPIC_API_KEY=your_key_here
-
-# 3. 実行（デフォルトは YOLO モード）
 bun run dev "hello.txt ファイルを作成して"
 
-# Safe モードは危険な操作に承認を求めます
-bun run dev --mode safe "src/auth.ts をリファクタして"
+# 自分でスタンドアロンバイナリをビルド
+bun run build:binary
 ```
 
 ## 記憶の仕組み

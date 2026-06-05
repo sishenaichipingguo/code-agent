@@ -22,9 +22,11 @@
 </p>
 
 ```bash
-git clone https://github.com/sishenaichipingguo/code-agent && cd code-agent
-bun install && export ANTHROPIC_API_KEY=sk-...
-bun run dev "2칸 들여쓰기를 쓰고 named export를 선호한다고 기억해 줘"
+# 설치 (macOS / Linux) — 사전 빌드된 바이너리 다운로드, Node/Bun 불필요
+curl -fsSL https://raw.githubusercontent.com/sishenaichipingguo/code-agent/main/install.sh | bash
+
+export ANTHROPIC_API_KEY=sk-...
+agent "2칸 들여쓰기를 쓰고 named export를 선호한다고 기억해 줘"
 ```
 
 ## 왜 Code Agent인가?
@@ -52,20 +54,37 @@ bun run dev "2칸 들여쓰기를 쓰고 named export를 선호한다고 기억�
 
 ## 빠른 시작
 
+### 설치 (권장)
+
+설치 스크립트가 플랫폼에 맞는 독립 실행 바이너리를 가져옵니다. Node나 Bun이 필요 없습니다.
+
 ```bash
-# 1. 클론 및 설치 (Bun 필요: https://bun.sh)
+curl -fsSL https://raw.githubusercontent.com/sishenaichipingguo/code-agent/main/install.sh | bash
+```
+
+[Releases 페이지](https://github.com/sishenaichipingguo/code-agent/releases)에서 바이너리를 직접 다운로드할 수도 있습니다. Windows 사용자는 거기서 `.zip`을 받으세요. macOS 바이너리는 ad-hoc 서명이 되어 있습니다. Gatekeeper가 여전히 막으면 `xattr -d com.apple.quarantine $(which agent)`를 실행하세요.
+
+그런 다음 키를 설정하면 됩니다.
+
+```bash
+export ANTHROPIC_API_KEY=your_key_here
+
+agent "hello.txt 파일을 만들어 줘"             # 기본은 YOLO 모드
+agent --mode safe "src/auth.ts를 리팩터링해 줘"  # 위험한 작업에 승인 요구
+```
+
+### 소스에서 빌드
+
+[Bun](https://bun.sh)이 필요합니다.
+
+```bash
 git clone https://github.com/sishenaichipingguo/code-agent
 cd code-agent
 bun install
-
-# 2. API 키 설정
-export ANTHROPIC_API_KEY=your_key_here
-
-# 3. 실행 (기본은 YOLO 모드)
 bun run dev "hello.txt 파일을 만들어 줘"
 
-# Safe 모드는 위험한 작업에 승인을 요구합니다
-bun run dev --mode safe "src/auth.ts를 리팩터링해 줘"
+# 직접 독립 실행 바이너리 빌드
+bun run build:binary
 ```
 
 ## 기억은 어떻게 동작하나

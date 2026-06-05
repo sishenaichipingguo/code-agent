@@ -1,71 +1,75 @@
 # Memory System Integration
 
-记忆系统融合实现 - 基于流程图的完整架构
+<p align="right">
+  <b>English</b> · <a href="README-MEMORY-SYSTEM.zh-CN.md">简体中文</a>
+</p>
 
-## 概述
+The complete architecture of Code Agent's memory system — a non-invasive design where an independent Worker Service handles observation generation, storage, and semantic search.
 
-这个实现将流程图中的记忆系统融合到当前 code-agent 项目中，采用**非侵入式**设计，通过独立的 Worker Service 处理观察生成、存储和语义搜索。
+## Overview
 
-## 架构组件
+This system layers persistent, searchable memory onto the Code Agent CLI without touching its core execution path. A separate Worker process receives hook calls over HTTP, generates structured observations, stores them, and exposes a search API. The CLI keeps working exactly as before whether or not the Worker is running.
 
-### 1. Hook 系统扩展 ✅
+## Architecture Components
 
-**文件**: `src/core/hooks/types.ts`
+### 1. Hook System Extension
 
-新增两个 Hook 事件：
-- `user-prompt-submit`: 用户提交 prompt 时触发
-- `post-tool-use`: 工具执行完成后触发
+**File**: `src/core/hooks/types.ts`
 
-### 2. AgentLoop 集成 ✅
+Two hook events were added:
+- `user-prompt-submit`: fires when the user submits a prompt
+- `post-tool-use`: fires after a tool finishes executing
 
-**文件**: `src/core/agent/loop.ts`
+### 2. AgentLoop Integration
 
-在关键点触发 Hook：
-- `run()` 方法开始时触发 `user-prompt-submit`
-- `executeTools()` 成功后触发 `post-tool-use`
+**File**: `src/core/agent/loop.ts`
 
-### 3. Worker Service ✅
+Hooks fire at key points:
+- `user-prompt-submit` at the start of the `run()` method
+- `post-tool-use` after `executeTools()` succeeds
 
-**核心文件**:
-- `src/worker/server.ts` - Express HTTP Server
-- `src/worker/session/manager.ts` - 会话和队列管理
-- `src/worker/agents/observer.ts` - SDKAgent 观察者
-- `src/worker/db/sqlite.ts` - SQLite 数据层
-- `src/worker/types/index.ts` - 类型定义和接口契约
+### 3. Worker Service
 
-**功能**:
-- 接收 CLI 的 Hook 调用（HTTP API）
-- 管理 ActiveSession 和消息队列
-- 使用 SDKAgent 生成结构化 observations
-- 存储到 SQLite 数据库
-- 提供搜索 API
+**Core files**:
+- `src/worker/server.ts` — Express HTTP server
+- `src/worker/session/manager.ts` — session and queue management
+- `src/worker/agents/observer.ts` — observer SDKAgent
+- `src/worker/db/sqlite.ts` — SQLite data layer
+- `src/worker/types/index.ts` — type definitions and interface contracts
 
-### 4. 数据模型
+**Responsibilities**:
+- Receive hook calls from the CLI (HTTP API)
+- Manage the `ActiveSession` and its message queue
+- Use an SDKAgent to generate structured observations
+- Persist to SQLite
+- Provide a search API
 
-**SQLite 表结构**:
-- `sessions` - 会话元数据
-- `observations` - 观察记录（工具调用、文件操作等）
-- `summaries` - 会话摘要
-- `user_prompts` - 用户输入历史
+### 4. Data Model
 
-## 使用方法
+**SQLite tables**:
+- `sessions` — session metadata
+- `observations` — observation records (tool calls, file operations, etc.)
+- `summaries` — session summaries
+- `user_prompts` — user input history
 
-### 启动 Worker Service
+## Usage
+
+### Start the Worker Service
 
 ```bash
-# 设置 API Key
+# Set your API key
 export ANTHROPIC_API_KEY="your-key-here"
 
-# 启动 Worker
+# Start the Worker
 bun run dev:worker
 
-# 或使用启动脚本
+# Or use the start script
 bun run scripts/start-worker.ts
 ```
 
-### 配置 Hook
+### Configure Hooks
 
-在 `.agent/config.json` 中添加：
+Add to `.agent/config.json`:
 
 ```json
 {
@@ -88,108 +92,113 @@ bun run scripts/start-worker.ts
 }
 ```
 
-### 测试
+### Test
 
 ```bash
-# 健康检查
+# Health check
 curl http://localhost:37777/health
 
-# 搜索 observations
+# Search observations
 curl "http://localhost:37777/api/search?project=code-agent&limit=10"
 ```
 
-## 数据流
+## Data Flow
 
 ```
-用户输入 "帮我重构 auth.ts"
+User input: "help me refactor auth.ts"
     ↓
-AgentLoop.run() 触发 user-prompt-submit Hook
+AgentLoop.run() fires user-prompt-submit hook
     ↓
 curl POST /api/sessions/init
     ↓
 Worker: SessionManager.initSession()
     ↓
-Worker: 创建 Session → 加入 init 消息到队列
+Worker: create Session → enqueue the init message
     ↓
-Worker: SDKAgent.processInit() 生成初始 observation
+Worker: SDKAgent.processInit() generates the initial observation
     ↓
-Worker: 存储到 SQLite observations 表
+Worker: persist to the SQLite observations table
     ↓
-AgentLoop 执行工具 Read(auth.ts)
+AgentLoop executes the tool Read(auth.ts)
     ↓
-executeTools() 触发 post-tool-use Hook
+executeTools() fires post-tool-use hook
     ↓
 curl POST /api/sessions/observations
     ↓
-Worker: 加入 observation 消息到队列
+Worker: enqueue the observation message
     ↓
-Worker: SDKAgent.processContinuation() 分析工具调用
+Worker: SDKAgent.processContinuation() analyzes the tool call
     ↓
-Worker: 存储到 SQLite
+Worker: persist to SQLite
 ```
 
-## 已实现功能
+## Implemented
 
-- ✅ Hook 系统扩展（user-prompt-submit, post-tool-use）
-- ✅ AgentLoop 集成触发点
-- ✅ Worker Service HTTP Server
-- ✅ SessionManager（会话管理和消息队列）
-- ✅ SDKAgent（观察者 Agent）
-- ✅ SQLite 数据层（sessions/observations/summaries/user_prompts）
-- ✅ 搜索 API（基于 SQLite）
-- ✅ 类型定义和接口契约
+- ✅ Hook system extension (`user-prompt-submit`, `post-tool-use`)
+- ✅ AgentLoop integration points
+- ✅ Worker Service HTTP server
+- ✅ SessionManager (session management and message queue)
+- ✅ SDKAgent (observer agent)
+- ✅ SQLite data layer (`sessions` / `observations` / `summaries` / `user_prompts`)
+- ✅ Search API (SQLite-backed)
+- ✅ Type definitions and interface contracts
 
-## 待实现功能
+## Roadmap
 
-### Phase 2: 语义搜索
-- [ ] ChromaDB 集成
-- [ ] 向量化 observations
-- [ ] 语义相似度搜索
-- [ ] 语义注入到 SystemPromptBuilder
+### Phase 2: Semantic Search
+- [ ] ChromaDB integration
+- [ ] Vectorize observations
+- [ ] Semantic similarity search
+- [ ] Semantic injection into the SystemPromptBuilder
 
-### Phase 3: 完整体验
-- [ ] Viewer UI（React SPA 或 Ink TUI）
-- [ ] SSE 实时推送
-- [ ] 搜索和管理界面
-- [ ] 性能优化和错误处理
+### Phase 3: Full Experience
+- [ ] Viewer UI (React SPA or Ink TUI)
+- [ ] SSE live updates
+- [ ] Search and management interface
+- [ ] Performance tuning and error handling
 
-## 设计优势
+> **Note:** A local embedding generator (`all-MiniLM-L6-v2` via `@xenova/transformers`) and ChromaDB client already exist under `src/worker/embedding/`. Semantic search is wired up but considered experimental until the injection pipeline above lands.
 
-1. **非侵入式**: Worker 是独立进程，不影响现有 CLI
-2. **渐进式**: 可以逐步添加功能（SQLite → ChromaDB → UI）
-3. **可选性**: 用户可选择是否启动 Worker
-4. **兼容性**: 利用现有 Hook 和 Memory 系统
-5. **解耦**: CLI 和 Worker 通过 HTTP API 通信
+## Design Advantages
 
-## 文件清单
+1. **Non-invasive** — the Worker is a separate process; it doesn't affect the existing CLI.
+2. **Incremental** — capabilities can be added step by step (SQLite → ChromaDB → UI).
+3. **Optional** — users choose whether to start the Worker.
+4. **Compatible** — builds on the existing hook and memory systems.
+5. **Decoupled** — the CLI and Worker communicate over an HTTP API.
+
+## File Manifest
 
 ```
 src/
 ├── core/
 │   ├── hooks/
-│   │   └── types.ts (已修改 - 新增事件类型)
+│   │   └── types.ts (modified — new event types)
 │   └── agent/
-│       └── loop.ts (已修改 - 触发新 Hook)
-├── worker/ (新增)
+│       └── loop.ts (modified — fires new hooks)
+├── worker/ (new)
 │   ├── server.ts
 │   ├── types/
 │   │   └── index.ts
 │   ├── db/
 │   │   └── sqlite.ts
+│   ├── embedding/
+│   │   ├── generator.ts
+│   │   └── chroma.ts
 │   ├── agents/
 │   │   └── observer.ts
 │   └── session/
 │       └── manager.ts
 scripts/
-└── start-worker.ts (新增)
+└── start-worker.ts (new)
 docs/
-└── worker-service-setup.md (新增)
+└── worker-service-setup.md (new)
 ```
 
-## 下一步
+## Next Steps
 
-1. 测试 Worker Service 基础功能
-2. 验证 Hook 触发和数据流
-3. 实现 ChromaDB 集成（Phase 2）
-4. 添加语义注入管道
-5. 开发 Viewer UI（Phase 3）
+1. Test the Worker Service basics
+2. Verify hook firing and the data flow
+3. Finish ChromaDB integration (Phase 2)
+4. Add the semantic injection pipeline
+5. Build the Viewer UI (Phase 3)

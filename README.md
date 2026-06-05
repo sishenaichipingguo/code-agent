@@ -22,9 +22,11 @@
 </p>
 
 ```bash
-git clone https://github.com/sishenaichipingguo/code-agent && cd code-agent
-bun install && export ANTHROPIC_API_KEY=sk-...
-bun run dev "remember that I use 2-space indent and prefer named exports"
+# Install (macOS / Linux) — downloads a prebuilt binary, no Node/Bun needed
+curl -fsSL https://raw.githubusercontent.com/sishenaichipingguo/code-agent/main/install.sh | bash
+
+export ANTHROPIC_API_KEY=sk-...
+agent "remember that I use 2-space indent and prefer named exports"
 ```
 
 ## Why Code Agent?
@@ -52,20 +54,37 @@ Every other terminal agent starts from zero on each run. You re-explain your sta
 
 ## Quick Start
 
+### Install (recommended)
+
+The installer grabs a standalone binary for your platform — no Node or Bun required:
+
 ```bash
-# 1. Clone and install (requires Bun: https://bun.sh)
+curl -fsSL https://raw.githubusercontent.com/sishenaichipingguo/code-agent/main/install.sh | bash
+```
+
+Or grab a binary directly from the [Releases page](https://github.com/sishenaichipingguo/code-agent/releases). Windows users: download the `.zip` there. macOS binaries are ad-hoc signed; if Gatekeeper still complains, run `xattr -d com.apple.quarantine $(which agent)`.
+
+Then set your key and go:
+
+```bash
+export ANTHROPIC_API_KEY=your_key_here
+
+agent "Create a hello.txt file"        # YOLO mode is the default
+agent --mode safe "Refactor src/auth.ts"  # require approval for risky ops
+```
+
+### Build from source
+
+Requires [Bun](https://bun.sh):
+
+```bash
 git clone https://github.com/sishenaichipingguo/code-agent
 cd code-agent
 bun install
-
-# 2. Set your API key
-export ANTHROPIC_API_KEY=your_key_here
-
-# 3. Run (YOLO mode is the default)
 bun run dev "Create a hello.txt file"
 
-# Safe mode requires approval for risky operations
-bun run dev --mode safe "Refactor src/auth.ts"
+# Build your own standalone binary
+bun run build:binary
 ```
 
 ## How memory works
