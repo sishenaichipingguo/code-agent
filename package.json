@@ -2,11 +2,42 @@
   "name": "code-agent",
   "version": "0.1.0",
   "type": "module",
-  "description": "AI-powered coding assistant with enterprise reliability and developer experience",
+  "description": "The terminal coding agent that remembers — persistent, searchable memory across sessions so you stop re-explaining yourself.",
+  "keywords": [
+    "ai",
+    "agent",
+    "coding-agent",
+    "cli",
+    "terminal",
+    "memory",
+    "llm",
+    "anthropic",
+    "claude",
+    "ollama",
+    "mcp",
+    "developer-tools"
+  ],
+  "homepage": "https://github.com/sishenaichipingguo/code-agent#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sishenaichipingguo/code-agent.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sishenaichipingguo/code-agent/issues"
+  },
+  "license": "MIT",
+  "engines": {
+    "bun": ">=1.0.0"
+  },
   "main": "dist/index.js",
   "bin": {
     "agent": "./dist/index.js"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "dev": "bun run src/cli/index.ts",
     "dev:node": "tsx src/cli/index.ts",
