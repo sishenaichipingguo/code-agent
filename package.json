@@ -73,6 +73,7 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/react": "^18.3.0",
+    "react-devtools-core": "^6.1.5",
     "tsx": "^4.21.0",
     "typescript": "^5.9.0"
   }
