@@ -86,8 +86,11 @@ export async function runSafe(args: Args) {
 
 async function promptUser(): Promise<string> {
   process.stderr.write('Enter your request:\n')
+  // Bun.stdin is a BunFile (a stream), not directly readable with .read();
+  // read the first chunk of stdin via its reader.
+  const reader = (Bun.stdin.stream() as ReadableStream<Uint8Array>).getReader()
+  const { value } = await reader.read()
+  reader.releaseLock()
   const decoder = new TextDecoder()
-  const buffer = new Uint8Array(1024)
-  const n = await Bun.stdin.read(buffer)
-  return decoder.decode(buffer.slice(0, n)).trim()
+  return decoder.decode(value ?? new Uint8Array()).trim()
 }

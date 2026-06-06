@@ -201,7 +201,7 @@ export async function runYolo(args: Args) {
           throw new Error(`Recall API failed: ${response.statusText}`)
         }
 
-        const data = await response.json()
+        const data = await response.json() as { formattedText?: string }
         return data.formattedText || ''
       } catch (error: any) {
         logger.warn('Memory recall failed', { error: error.message })

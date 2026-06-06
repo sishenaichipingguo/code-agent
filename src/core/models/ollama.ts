@@ -44,10 +44,10 @@ export class OllamaAdapter implements ModelAdapter {
         throw new Error(`Ollama: ${response.statusText} - ${errorText}`)
       }
 
-      const data = await response.json()
+      const data = await response.json() as { message?: { content?: string; tool_calls?: any[] } }
       const msg = data.message
 
-      if (msg?.tool_calls?.length > 0) {
+      if (msg?.tool_calls && msg.tool_calls.length > 0) {
         return {
           type: 'tool_use',
           tools: msg.tool_calls.map((tc: any, i: number) => ({

@@ -1,6 +1,8 @@
 import { spawn } from 'child_process'
 import type { HookEvent, HookEntry, HooksConfig, OnError } from './types'
 
+export type { HooksConfig } from './types'
+
 export class HookManager {
   constructor(
     private config: HooksConfig,
@@ -57,8 +59,8 @@ export class HookManager {
         setTimeout(() => { try { proc.kill('SIGKILL') } catch { /* already gone */ } }, 3000)
       }, entry.timeout)
 
-      proc.stdout.on('data', (d: Buffer) => { stdout += d.toString() })
-      proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
+      proc.stdout?.on('data', (d: Buffer) => { stdout += d.toString() })
+      proc.stderr?.on('data', (d: Buffer) => { stderr += d.toString() })
 
       if (stdin !== null && proc.stdin) {
         proc.stdin.write(stdin)

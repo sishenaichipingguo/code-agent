@@ -74,7 +74,8 @@ export class ToolRegistry {
 
     const logger = getLogger()
     const config = getConfig()
-    const timeout = config.tools?.[name as keyof typeof config.tools]?.timeout || 30000
+    const toolConfig = config.tools?.[name as keyof typeof config.tools]
+    const timeout = (toolConfig && 'timeout' in toolConfig ? toolConfig.timeout : undefined) || 30000
 
     const hookEnv: Record<string, string> = {
       AGENT_TOOL_NAME: name,

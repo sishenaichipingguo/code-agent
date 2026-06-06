@@ -29,6 +29,9 @@ export const ConfigSchema = z.object({
   apiKey: z.string().optional(),
   baseUrl: z.string().optional(),
 
+  // Optional project name, used to scope memory/recall (defaults to 'code-agent')
+  project: z.string().optional(),
+
   tools: z.object({
     bash: z.object({
       timeout: z.number().default(30000)
@@ -79,6 +82,7 @@ export type Config = z.infer<typeof ConfigSchema>
 export const DEFAULT_CONFIG: Config = {
   model: 'claude-sonnet-4-6',
   mode: 'yolo',
+  provider: 'anthropic',
   session: {
     autoSave: true,
     saveDir: '.agent/sessions'

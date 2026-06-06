@@ -31,7 +31,7 @@ export class AnthropicAdapter implements ModelAdapter {
     const tracker = getTokenTracker()
 
     return withRetry(
-      async () => {
+      async (): Promise<UnifiedResponse> => {
         logger.debug('API call started')
 
         const tools = toolRegistry.toSchema()
@@ -74,7 +74,9 @@ export class AnthropicAdapter implements ModelAdapter {
         }
 
         // Handle text response
-        const textContent = response.content.find((c: any) => c.type === 'text')
+        const textContent = response.content.find(
+          (c): c is Anthropic.Messages.TextBlock => c.type === 'text'
+        )
         if (textContent) {
           return {
             type: 'text',

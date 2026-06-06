@@ -1,6 +1,8 @@
 export class PerformanceMetrics {
   private metrics = new Map<string, number[]>()
 
+  measure<T>(name: string, fn: () => Promise<T>): Promise<T>
+  measure<T>(name: string, fn: () => T): T
   measure<T>(name: string, fn: () => T | Promise<T>): T | Promise<T> {
     const start = performance.now()
 
@@ -10,7 +12,7 @@ export class PerformanceMetrics {
       return result.finally(() => {
         const duration = performance.now() - start
         this.record(name, duration)
-      }) as T
+      }) as Promise<T>
     }
 
     const duration = performance.now() - start

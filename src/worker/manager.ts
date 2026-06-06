@@ -27,7 +27,7 @@ export class WorkerManager {
     }
 
     return new Promise((resolve, reject) => {
-      const env = {
+      const env: Record<string, string | undefined> = {
         ...process.env,
         WORKER_PORT: String(this.port),
         ANTHROPIC_API_KEY: this.options.apiKey

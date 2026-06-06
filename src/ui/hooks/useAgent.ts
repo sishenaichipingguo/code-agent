@@ -33,7 +33,11 @@ export function useAgent(options: UseAgentOptions) {
       // Use streaming if available
       if (options.model.chatStream) {
         const stream = options.model.chatStream(
-          [{ role: 'user', content: text }],
+          {
+            model: options.model.name,
+            messages: [{ role: 'user', content: text }],
+            stream: true
+          },
           options.tools
         )
 

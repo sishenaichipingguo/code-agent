@@ -81,3 +81,11 @@ export interface ModelCapabilities {
   streaming: boolean
   vision: boolean
 }
+
+// Unified interface implemented by every model provider adapter.
+export interface ModelAdapter {
+  name: string
+  capabilities: ModelCapabilities
+  chat(request: UnifiedRequest, toolRegistry: any): Promise<UnifiedResponse>
+  chatStream?(request: UnifiedRequest, toolRegistry: any): AsyncGenerator<StreamChunk>
+}

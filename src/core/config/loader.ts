@@ -61,14 +61,14 @@ export class ConfigLoader {
     return config
   }
 
-  private merge(...configs: Partial<Config>[]): Config {
-    return configs.reduce((acc, config) => ({
+  private merge(...configs: Partial<Config>[]): Partial<Config> {
+    return configs.reduce<Partial<Config>>((acc, config) => ({
       ...acc,
       ...config,
       tools: { ...acc.tools, ...config.tools },
-      session: { ...acc.session, ...config.session },
-      logging: { ...acc.logging, ...config.logging }
-    }), {} as Config)
+      session: { ...acc.session, ...config.session } as Config['session'],
+      logging: { ...acc.logging, ...config.logging } as Config['logging']
+    }), {})
   }
 }
 
