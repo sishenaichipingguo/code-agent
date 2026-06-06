@@ -6,7 +6,8 @@ export type { HooksConfig } from './types'
 export class HookManager {
   constructor(
     private config: HooksConfig,
-    private onWarn: (msg: string) => void = (msg) => process.stderr.write(`⚠️  Hook warning: ${msg}\n`)
+    private onWarn: (msg: string) => void = msg =>
+      process.stderr.write(`⚠️  Hook warning: ${msg}\n`)
   ) {}
 
   async fire(event: HookEvent, env: Record<string, string>): Promise<void> {
@@ -17,7 +18,11 @@ export class HookManager {
     }
   }
 
-  async transform<T>(event: HookEvent, payload: T, env: Record<string, string>): Promise<T> {
+  async transform<T>(
+    event: HookEvent,
+    payload: T,
+    env: Record<string, string>
+  ): Promise<T> {
     const entries = this.config[event]
     if (!entries?.length) return payload
     let current = payload
@@ -33,20 +38,29 @@ export class HookManager {
     return current
   }
 
-  private run(entry: HookEntry, extraEnv: Record<string, string>, stdin: string | null): Promise<string | null> {
+  private run(
+    entry: HookEntry,
+    extraEnv: Record<string, string>,
+    stdin: string | null
+  ): Promise<string | null> {
     return new Promise((resolve, reject) => {
       const env: Record<string, string> = {
-        ...(Object.fromEntries(
-          Object.entries(process.env).filter((e): e is [string, string] => e[1] !== undefined)
-        )),
+        ...Object.fromEntries(
+          Object.entries(process.env).filter(
+            (e): e is [string, string] => e[1] !== undefined
+          )
+        ),
         AGENT_CWD: process.cwd(),
-        ...extraEnv
+        ...extraEnv,
       }
 
       const proc = spawn('bash', ['-c', entry.command], {
         cwd: process.cwd(),
         env,
-        stdio: stdin !== null ? ['pipe', 'pipe', 'pipe'] : ['ignore', 'pipe', 'pipe']
+        stdio:
+          stdin !== null
+            ? ['pipe', 'pipe', 'pipe']
+            : ['ignore', 'pipe', 'pipe'],
       })
 
       let stdout = ''
@@ -56,11 +70,21 @@ export class HookManager {
       const timer = setTimeout(() => {
         killed = true
         proc.kill('SIGTERM')
-        setTimeout(() => { try { proc.kill('SIGKILL') } catch { /* already gone */ } }, 3000)
+        setTimeout(() => {
+          try {
+            proc.kill('SIGKILL')
+          } catch {
+            /* already gone */
+          }
+        }, 3000)
       }, entry.timeout)
 
-      proc.stdout?.on('data', (d: Buffer) => { stdout += d.toString() })
-      proc.stderr?.on('data', (d: Buffer) => { stderr += d.toString() })
+      proc.stdout?.on('data', (d: Buffer) => {
+        stdout += d.toString()
+      })
+      proc.stderr?.on('data', (d: Buffer) => {
+        stderr += d.toString()
+      })
 
       if (stdin !== null && proc.stdin) {
         proc.stdin.write(stdin)
@@ -77,14 +101,14 @@ export class HookManager {
         }
         if (code !== 0) {
           this.handleError(entry.onError, entry.command, code, stderr.trim())
-            .then(() => resolve(null))  // on warn/ignore, return null so transform keeps original
-            .catch(reject)              // on abort, reject propagates the error
+            .then(() => resolve(null)) // on warn/ignore, return null so transform keeps original
+            .catch(reject) // on abort, reject propagates the error
           return
         }
         resolve(stdout)
       })
 
-      proc.on('error', (err) => {
+      proc.on('error', err => {
         clearTimeout(timer)
         this.handleError(entry.onError, entry.command, null, err.message)
           .then(() => resolve(null))
@@ -93,7 +117,12 @@ export class HookManager {
     })
   }
 
-  private async handleError(onError: OnError, command: string, code: number | null, stderr: string): Promise<void> {
+  private async handleError(
+    onError: OnError,
+    command: string,
+    code: number | null,
+    stderr: string
+  ): Promise<void> {
     const msg = `Hook command failed (exit ${code}): ${command}${stderr ? ` — ${stderr}` : ''}`
     if (onError === 'ignore') return
     if (onError === 'warn') {
@@ -104,7 +133,9 @@ export class HookManager {
   }
 }
 
-export function createHookManager(config: HooksConfig | undefined): HookManager | undefined {
+export function createHookManager(
+  config: HooksConfig | undefined
+): HookManager | undefined {
   if (!config || Object.keys(config).length === 0) return undefined
   return new HookManager(config)
 }

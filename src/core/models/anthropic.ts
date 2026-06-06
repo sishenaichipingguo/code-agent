@@ -1,5 +1,15 @@
 import Anthropic from '@anthropic-ai/sdk'
-import type { ModelAdapter, UnifiedRequest, UnifiedResponse, StreamChunk, ModelCapabilities } from './types'
+import { AgentError, ErrorCode } from '@/infra/errors'
+import type {
+  ModelAdapter,
+  UnifiedRequest,
+  UnifiedResponse,
+  StreamChunk,
+  ModelCapabilities,
+  ContentBlock,
+  ToolUseBlock,
+  ToolSchemaProvider,
+} from './types'
 import { getTokenTracker } from '@/infra/token-tracker'
 import { getLogger } from '@/infra/logger'
 import { withRetry } from '@/infra/errors'
@@ -15,18 +25,21 @@ export class AnthropicAdapter implements ModelAdapter {
   capabilities: ModelCapabilities = {
     tools: true,
     streaming: true,
-    vision: true
+    vision: true,
   }
   private client: Anthropic
 
   constructor(private config: Config) {
     this.client = new Anthropic({
       apiKey: config.apiKey,
-      ...(config.baseUrl && { baseURL: config.baseUrl })
+      ...(config.baseUrl && { baseURL: config.baseUrl }),
     })
   }
 
-  async chat(request: UnifiedRequest, toolRegistry: any): Promise<UnifiedResponse> {
+  async chat(
+    request: UnifiedRequest,
+    toolRegistry: ToolSchemaProvider
+  ): Promise<UnifiedResponse> {
     const logger = getLogger()
     const tracker = getTokenTracker()
 
@@ -38,38 +51,56 @@ export class AnthropicAdapter implements ModelAdapter {
         const response = await this.client.messages.create({
           model: this.config.model,
           max_tokens: request.max_tokens || 4096,
-          messages: request.messages as any,
-          tools,
+          messages:
+            request.messages as unknown as Anthropic.Messages.MessageParam[],
+          tools: tools as unknown as Anthropic.Messages.ToolUnion[],
           system: [
             {
               type: 'text',
               text: request.system ?? this.defaultSystemPrompt(),
-              cache_control: { type: 'ephemeral' }
-            }
-          ] as any
+              cache_control: { type: 'ephemeral' },
+            },
+          ] as Anthropic.Messages.TextBlockParam[],
         })
 
         const inputTokens = response.usage.input_tokens
         const outputTokens = response.usage.output_tokens
-        const cacheCreation = (response.usage as any).cache_creation_input_tokens ?? 0
-        const cacheRead = (response.usage as any).cache_read_input_tokens ?? 0
+        const usageWithCache = response.usage as {
+          cache_creation_input_tokens?: number
+          cache_read_input_tokens?: number
+        }
+        const cacheCreation = usageWithCache.cache_creation_input_tokens ?? 0
+        const cacheRead = usageWithCache.cache_read_input_tokens ?? 0
 
-        tracker.track(this.config.model, inputTokens, outputTokens, cacheCreation, cacheRead)
+        tracker.track(
+          this.config.model,
+          inputTokens,
+          outputTokens,
+          cacheCreation,
+          cacheRead
+        )
 
         logger.debug('API call completed', {
           tokens: inputTokens + outputTokens,
           cacheCreation,
-          cacheRead
+          cacheRead,
         })
 
         // Handle tool use first (stop_reason is authoritative)
-        const toolCalls = response.content.filter((c: any) => c.type === 'tool_use')
+        const toolCalls = response.content.filter(
+          (c): c is Anthropic.Messages.ToolUseBlock => c.type === 'tool_use'
+        )
         if (response.stop_reason === 'tool_use' && toolCalls.length > 0) {
           return {
             type: 'tool_use',
-            tools: toolCalls,
-            rawContent: response.content,
-            inputTokens
+            tools: toolCalls.map(c => ({
+              type: 'tool_use' as const,
+              id: c.id,
+              name: c.name,
+              input: (c.input ?? {}) as Record<string, unknown>,
+            })),
+            rawContent: response.content as ContentBlock[],
+            inputTokens,
           }
         }
 
@@ -81,41 +112,45 @@ export class AnthropicAdapter implements ModelAdapter {
           return {
             type: 'text',
             content: textContent.text,
-            rawContent: response.content,
-            inputTokens
+            rawContent: response.content as ContentBlock[],
+            inputTokens,
           }
         }
 
         return {
           type: 'text',
           content: 'No response',
-          rawContent: response.content,
-          inputTokens
+          rawContent: response.content as ContentBlock[],
+          inputTokens,
         }
       },
       {
         maxRetries: 3,
         onRetry: (attempt, error) => {
           logger.warn(`API call failed, retrying (${attempt}/3)`, {
-            error: error.message
+            error: error instanceof Error ? error.message : String(error),
           })
-        }
+        },
       }
-    ).catch((error: any) => {
-      const { AgentError, ErrorCode } = require('@/infra/errors')
-
+    ).catch((error: unknown) => {
+      const err = error as { message?: string; status?: number }
       let errorCode = ErrorCode.API_ERROR
-      if (error.message?.includes('network')) {
+      if (err.message?.includes('network')) {
         errorCode = ErrorCode.NETWORK_ERROR
-      } else if (error.status === 429) {
+      } else if (err.status === 429) {
         errorCode = ErrorCode.RATE_LIMIT
       }
 
-      const agentError = new AgentError(errorCode, error.message, {}, true)
+      const agentError = new AgentError(
+        errorCode,
+        err.message ?? String(error),
+        {},
+        true
+      )
 
       return {
         type: 'error',
-        error: agentError.toUserMessage()
+        error: agentError.toUserMessage(),
       }
     })
   }
@@ -126,7 +161,10 @@ Current directory: ${process.cwd()}
 Available tools: bash, read, write, edit, glob, grep, ls, cp, mv, rm`
   }
 
-  async *chatStream(request: UnifiedRequest, toolRegistry: any): AsyncGenerator<StreamChunk> {
+  async *chatStream(
+    request: UnifiedRequest,
+    toolRegistry: ToolSchemaProvider
+  ): AsyncGenerator<StreamChunk> {
     const logger = getLogger()
     const tracker = getTokenTracker()
 
@@ -137,15 +175,16 @@ Available tools: bash, read, write, edit, glob, grep, ls, cp, mv, rm`
       const stream = await this.client.messages.stream({
         model: this.config.model,
         max_tokens: request.max_tokens || 4096,
-        messages: request.messages as any,
-        tools,
+        messages:
+          request.messages as unknown as Anthropic.Messages.MessageParam[],
+        tools: tools as unknown as Anthropic.Messages.ToolUnion[],
         system: [
           {
             type: 'text',
             text: request.system ?? this.defaultSystemPrompt(),
-            cache_control: { type: 'ephemeral' }
-          }
-        ] as any
+            cache_control: { type: 'ephemeral' },
+          },
+        ] as Anthropic.Messages.TextBlockParam[],
       })
 
       let inputTokens = 0
@@ -155,20 +194,28 @@ Available tools: bash, read, write, edit, glob, grep, ls, cp, mv, rm`
       // Map from block index to accumulated input JSON string
       const toolInputBuffers = new Map<number, string>()
       // Map from block index to partial tool block (id, name)
-      const toolBlocks = new Map<number, any>()
+      const toolBlocks = new Map<number, ToolUseBlock>()
 
       for await (const event of stream) {
         if (event.type === 'message_start') {
           inputTokens = event.message.usage.input_tokens
-          cacheCreation = (event.message.usage as any).cache_creation_input_tokens ?? 0
-          cacheRead = (event.message.usage as any).cache_read_input_tokens ?? 0
+          const usageWithCache = event.message.usage as {
+            cache_creation_input_tokens?: number
+            cache_read_input_tokens?: number
+          }
+          cacheCreation = usageWithCache.cache_creation_input_tokens ?? 0
+          cacheRead = usageWithCache.cache_read_input_tokens ?? 0
         }
 
         if (event.type === 'content_block_start') {
           if (event.content_block.type === 'tool_use') {
             toolBlocks.set(event.index, { ...event.content_block, input: {} })
             toolInputBuffers.set(event.index, '')
-            yield { type: 'tool_use', tool: toolBlocks.get(event.index), toolIndex: event.index }
+            yield {
+              type: 'tool_use',
+              tool: toolBlocks.get(event.index),
+              toolIndex: event.index,
+            }
           }
         }
 
@@ -176,9 +223,15 @@ Available tools: bash, read, write, edit, glob, grep, ls, cp, mv, rm`
           if (event.delta.type === 'text_delta') {
             yield { type: 'text', content: event.delta.text }
           } else if (event.delta.type === 'input_json_delta') {
-            const buf = (toolInputBuffers.get(event.index) ?? '') + event.delta.partial_json
+            const buf =
+              (toolInputBuffers.get(event.index) ?? '') +
+              event.delta.partial_json
             toolInputBuffers.set(event.index, buf)
-            yield { type: 'tool_input_delta', toolIndex: event.index, inputDelta: event.delta.partial_json }
+            yield {
+              type: 'tool_input_delta',
+              toolIndex: event.index,
+              inputDelta: event.delta.partial_json,
+            }
           }
         }
 
@@ -201,23 +254,35 @@ Available tools: bash, read, write, edit, glob, grep, ls, cp, mv, rm`
         }
 
         if (event.type === 'message_stop') {
-          tracker.track(this.config.model, inputTokens, outputTokens, cacheCreation, cacheRead)
+          tracker.track(
+            this.config.model,
+            inputTokens,
+            outputTokens,
+            cacheCreation,
+            cacheRead
+          )
           logger.debug('Streaming API call completed', {
             tokens: inputTokens + outputTokens,
             cacheCreation,
-            cacheRead
+            cacheRead,
           })
           yield { type: 'done', inputTokens }
         }
       }
-    } catch (error: any) {
-      logger.error('Streaming API call failed', { error: error.message })
+    } catch (error) {
+      const err = error as {
+        message?: string
+        status?: number
+        statusCode?: number
+      }
+      const message = err.message ?? String(error)
+      logger.error('Streaming API call failed', { error: message })
       const { AgentError, ErrorCode } = await import('@/infra/errors')
-      const httpStatus = error?.status ?? error?.statusCode
+      const httpStatus = err.status ?? err.statusCode
       let errorCode = ErrorCode.API_ERROR
       if (httpStatus === 429) errorCode = ErrorCode.RATE_LIMIT
-      else if (error.message?.includes('network')) errorCode = ErrorCode.NETWORK_ERROR
-      throw new AgentError(errorCode, error.message, {}, true)
+      else if (message.includes('network')) errorCode = ErrorCode.NETWORK_ERROR
+      throw new AgentError(errorCode, message, {}, true)
     }
   }
 }

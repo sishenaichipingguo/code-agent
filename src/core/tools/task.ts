@@ -1,5 +1,6 @@
 import type { Tool } from './registry'
 import { TaskManager } from '../tasks/manager'
+import type { TaskCreateInput, TaskUpdateInput } from '../tasks/types'
 
 let taskManager: TaskManager | null = null
 
@@ -21,9 +22,9 @@ export class TaskCreateTool implements Tool {
       subject: { type: 'string' },
       description: { type: 'string' },
       activeForm: { type: 'string' },
-      metadata: { type: 'object' }
+      metadata: { type: 'object' },
     },
-    required: ['subject', 'description']
+    required: ['subject', 'description'],
   }
 
   isConcurrencySafe = () => false
@@ -32,7 +33,7 @@ export class TaskCreateTool implements Tool {
   checkPermissions = () => ({ type: 'allow' as const })
   preparePermissionMatcher = () => null
 
-  async execute(input: any): Promise<string> {
+  async execute(input: TaskCreateInput): Promise<string> {
     const task = getTaskManager().create(input)
     return `Task #${task.id} created: ${task.subject}`
   }
@@ -48,13 +49,16 @@ export class TaskUpdateTool implements Tool {
       subject: { type: 'string' },
       description: { type: 'string' },
       activeForm: { type: 'string' },
-      status: { type: 'string', enum: ['pending', 'in_progress', 'completed', 'deleted'] },
+      status: {
+        type: 'string',
+        enum: ['pending', 'in_progress', 'completed', 'deleted'],
+      },
       owner: { type: 'string' },
       addBlocks: { type: 'array', items: { type: 'string' } },
       addBlockedBy: { type: 'array', items: { type: 'string' } },
-      metadata: { type: 'object' }
+      metadata: { type: 'object' },
     },
-    required: ['taskId']
+    required: ['taskId'],
   }
 
   isConcurrencySafe = () => false
@@ -63,7 +67,7 @@ export class TaskUpdateTool implements Tool {
   checkPermissions = () => ({ type: 'allow' as const })
   preparePermissionMatcher = () => null
 
-  async execute(input: any): Promise<string> {
+  async execute(input: TaskUpdateInput): Promise<string> {
     const task = getTaskManager().update(input)
     return `Task #${task.id} updated: ${task.status}`
   }
@@ -84,9 +88,12 @@ export class TaskListTool implements Tool {
     const tasks = getTaskManager().list()
     if (tasks.length === 0) return 'No tasks found'
 
-    return tasks.map(t =>
-      `#${t.id}. [${t.status}] ${t.subject}${t.blockedBy.length ? ' (blocked)' : ''}`
-    ).join('\n')
+    return tasks
+      .map(
+        t =>
+          `#${t.id}. [${t.status}] ${t.subject}${t.blockedBy.length ? ' (blocked)' : ''}`
+      )
+      .join('\n')
   }
 }
 
@@ -96,7 +103,7 @@ export class TaskGetTool implements Tool {
   inputSchema = {
     type: 'object',
     properties: { taskId: { type: 'string' } },
-    required: ['taskId']
+    required: ['taskId'],
   }
 
   isConcurrencySafe = () => false
@@ -105,7 +112,7 @@ export class TaskGetTool implements Tool {
   checkPermissions = () => ({ type: 'allow' as const })
   preparePermissionMatcher = () => null
 
-  async execute(input: any): Promise<string> {
+  async execute(input: { taskId: string }): Promise<string> {
     const task = getTaskManager().get(input.taskId)
     if (!task) return `Task ${input.taskId} not found`
 

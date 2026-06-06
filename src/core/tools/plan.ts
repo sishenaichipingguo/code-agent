@@ -18,9 +18,9 @@ export class EnterPlanModeTool implements Tool {
   inputSchema = {
     type: 'object',
     properties: {
-      sessionId: { type: 'string' }
+      sessionId: { type: 'string' },
     },
-    required: ['sessionId']
+    required: ['sessionId'],
   }
 
   isConcurrencySafe = () => false
@@ -29,7 +29,7 @@ export class EnterPlanModeTool implements Tool {
   checkPermissions = () => ({ type: 'allow' as const })
   preparePermissionMatcher = () => null
 
-  async execute(input: any): Promise<string> {
+  async execute(input: { sessionId: string }): Promise<string> {
     const state = getPlanManager().enter(input.sessionId)
     return `Entered plan mode. Plan file: ${state.planFile}`
   }

@@ -5,7 +5,11 @@ const MICRO_FRACTION = 0.2
 const MIN_MESSAGES_FOR_MICRO = 6
 
 export class MicroCompactor implements Compressor {
-  async run(messages: RawMessage[], model: ModelAdapter, modelName: string): Promise<CompressorResult> {
+  async run(
+    messages: RawMessage[],
+    model: ModelAdapter,
+    modelName: string
+  ): Promise<CompressorResult> {
     if (messages.length < MIN_MESSAGES_FOR_MICRO) {
       return { messages, summary: '' }
     }
@@ -21,11 +25,12 @@ export class MicroCompactor implements Compressor {
           ...toSummarize,
           {
             role: 'user',
-            content: 'Briefly summarize these messages in 2-3 sentences. Focus only on concrete facts: what files were touched, what decisions were made, what errors were hit.'
-          }
+            content:
+              'Briefly summarize these messages in 2-3 sentences. Focus only on concrete facts: what files were touched, what decisions were made, what errors were hit.',
+          },
         ] as any,
         max_tokens: 512,
-        stream: false
+        stream: false,
       },
       { toSchema: () => [] }
     )

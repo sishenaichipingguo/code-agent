@@ -6,7 +6,7 @@ export type {
   McpConfig,
   McpToolDefinition,
   SdkClientLike,
-  ClientFactory
+  ClientFactory,
 } from './types'
 export { createMcpTool } from './client/tool-wrapper'
 export { createClientTransport } from './client/transport'

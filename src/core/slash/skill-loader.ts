@@ -9,7 +9,7 @@ export class SkillLoader {
   async loadInto(registry: SlashCommandRegistry): Promise<void> {
     for (let i = 0; i < this.dirs.length; i++) {
       const dir = this.dirs[i]
-      const priority = i  // later dirs = higher priority
+      const priority = i // later dirs = higher priority
       if (!existsSync(dir)) continue
 
       const files = readdirSync(dir).filter(f => f.endsWith('.md'))
@@ -20,18 +20,25 @@ export class SkillLoader {
 
           const name: string = data.name || data.trigger?.replace(/^\//, '')
           if (!name || !data.description) {
-            process.stderr.write(`[skill-loader] Skipping ${file}: missing name or description\n`)
+            process.stderr.write(
+              `[skill-loader] Skipping ${file}: missing name or description\n`
+            )
             continue
           }
 
-          registry.register({
-            name,
-            description: data.description,
-            args: data.args ?? 'optional',
-            prompt: content.trim()
-          }, priority)
+          registry.register(
+            {
+              name,
+              description: data.description,
+              args: data.args ?? 'optional',
+              prompt: content.trim(),
+            },
+            priority
+          )
         } catch (err: any) {
-          process.stderr.write(`[skill-loader] Failed to load ${file}: ${err.message}\n`)
+          process.stderr.write(
+            `[skill-loader] Failed to load ${file}: ${err.message}\n`
+          )
         }
       }
     }

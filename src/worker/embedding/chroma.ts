@@ -1,16 +1,27 @@
-import { ChromaClient } from 'chromadb'
+import { ChromaClient, type Collection } from 'chromadb'
 import type { Observation } from '../types'
 import { generateEmbedding } from './generator'
+import { getLogger } from '../../infra/logger'
+
+export interface SemanticSearchResult {
+  id: number
+  content: string
+  type: string
+  sessionId: number
+  createdAt: number
+  metadata: Record<string, unknown>
+  score: number
+}
 
 export class ChromaManager {
   private client: ChromaClient
-  private collection: any
+  private collection: Collection | null = null
   private collectionName = 'observations'
 
   constructor(private dataDir: string) {
     // 使用嵌入式模式，数据存储在本地
     this.client = new ChromaClient({
-      path: `${dataDir}/chroma`
+      path: `${dataDir}/chroma`,
     })
   }
 
@@ -18,16 +29,16 @@ export class ChromaManager {
     try {
       // 尝试获取已存在的 collection
       this.collection = await this.client.getCollection({
-        name: this.collectionName
+        name: this.collectionName,
       })
-      console.log('✅ ChromaDB collection loaded')
+      getLogger().info('ChromaDB collection loaded')
     } catch {
       // 如果不存在，创建新的 collection
       this.collection = await this.client.createCollection({
         name: this.collectionName,
-        metadata: { description: 'Memory observations with embeddings' }
+        metadata: { description: 'Memory observations with embeddings' },
       })
-      console.log('✅ ChromaDB collection created')
+      getLogger().info('ChromaDB collection created')
     }
   }
 
@@ -47,12 +58,14 @@ export class ChromaManager {
       ids: [`obs_${observation.id}`],
       embeddings: [embedding],
       documents: [observation.content],
-      metadatas: [{
-        session_id: observation.sessionId,
-        type: observation.type,
-        created_at: observation.createdAt,
-        ...observation.metadata
-      }]
+      metadatas: [
+        {
+          session_id: observation.sessionId,
+          type: observation.type,
+          created_at: observation.createdAt,
+          ...observation.metadata,
+        },
+      ],
     })
   }
 
@@ -66,15 +79,7 @@ export class ChromaManager {
       limit?: number
       minScore?: number
     } = {}
-  ): Promise<Array<{
-    id: number
-    content: string
-    type: string
-    sessionId: number
-    createdAt: number
-    metadata: any
-    score: number
-  }>> {
+  ): Promise<SemanticSearchResult[]> {
     if (!this.collection) {
       throw new Error('ChromaDB not initialized')
     }
@@ -92,11 +97,11 @@ export class ChromaManager {
     const results = await this.collection.query({
       queryEmbeddings: [queryEmbedding],
       nResults: limit,
-      where
+      where,
     })
 
     // 解析结果
-    const observations: Array<any> = []
+    const observations: SemanticSearchResult[] = []
 
     if (results.ids && results.ids[0]) {
       for (let i = 0; i < results.ids[0].length; i++) {
@@ -107,7 +112,10 @@ export class ChromaManager {
         // 过滤低分结果
         if (score < minScore) continue
 
-        const metadata = results.metadatas?.[0]?.[i] || {}
+        const metadata = (results.metadatas?.[0]?.[i] || {}) as Record<
+          string,
+          unknown
+        >
         const document = results.documents?.[0]?.[i] || ''
 
         // 从 id 中提取 observation id
@@ -116,11 +124,11 @@ export class ChromaManager {
         observations.push({
           id: obsId,
           content: document,
-          type: metadata.type,
-          sessionId: metadata.session_id,
-          createdAt: metadata.created_at,
+          type: String(metadata.type ?? ''),
+          sessionId: Number(metadata.session_id ?? 0),
+          createdAt: Number(metadata.created_at ?? 0),
           metadata,
-          score
+          score,
         })
       }
     }
@@ -138,12 +146,14 @@ export class ChromaManager {
 
     if (observations.length === 0) return
 
-    console.log(`🔄 Adding ${observations.length} observations to ChromaDB...`)
+    getLogger().info('Adding observations to ChromaDB', {
+      count: observations.length,
+    })
 
     const ids: string[] = []
     const embeddings: number[][] = []
     const documents: string[] = []
-    const metadatas: any[] = []
+    const metadatas: Record<string, unknown>[] = []
 
     for (const obs of observations) {
       const embedding = await generateEmbedding(obs.content)
@@ -155,7 +165,7 @@ export class ChromaManager {
         session_id: obs.sessionId,
         type: obs.type,
         created_at: obs.createdAt,
-        ...obs.metadata
+        ...obs.metadata,
       })
     }
 
@@ -163,10 +173,14 @@ export class ChromaManager {
       ids,
       embeddings,
       documents,
-      metadatas
+      metadatas: metadatas as unknown as Parameters<
+        Collection['add']
+      >[0]['metadatas'],
     })
 
-    console.log(`✅ Added ${observations.length} observations to ChromaDB`)
+    getLogger().info('Added observations to ChromaDB', {
+      count: observations.length,
+    })
   }
 
   /**

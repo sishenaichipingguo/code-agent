@@ -1,6 +1,7 @@
 import type { Tool } from './registry'
 import { MemoryManager } from '../memory/manager'
 import { TeamStore } from '../memory/team-store'
+import type { MemoryCreateInput, MemoryUpdateInput } from '../memory/types'
 
 let memoryManager: MemoryManager | null = null
 
@@ -21,10 +22,13 @@ export class MemorySaveTool implements Tool {
     properties: {
       name: { type: 'string' },
       description: { type: 'string' },
-      type: { type: 'string', enum: ['user', 'feedback', 'project', 'reference'] },
-      content: { type: 'string' }
+      type: {
+        type: 'string',
+        enum: ['user', 'feedback', 'project', 'reference'],
+      },
+      content: { type: 'string' },
     },
-    required: ['name', 'description', 'type', 'content']
+    required: ['name', 'description', 'type', 'content'],
   }
 
   isConcurrencySafe = () => false
@@ -33,7 +37,7 @@ export class MemorySaveTool implements Tool {
   checkPermissions = () => ({ type: 'allow' as const })
   preparePermissionMatcher = () => null
 
-  async execute(input: any): Promise<string> {
+  async execute(input: MemoryCreateInput): Promise<string> {
     const memory = getMemoryManager().save(input)
     return `Memory saved: ${memory.name} (${memory.type})`
   }
@@ -57,16 +61,20 @@ export class MemoryLoadTool implements Tool {
 
 export class MemoryUpdateTool implements Tool {
   name = 'memory_update'
-  description = 'Update an existing memory entry (overwrites content and description)'
+  description =
+    'Update an existing memory entry (overwrites content and description)'
   inputSchema = {
     type: 'object',
     properties: {
       name: { type: 'string' },
       description: { type: 'string' },
-      type: { type: 'string', enum: ['user', 'feedback', 'project', 'reference'] },
-      content: { type: 'string' }
+      type: {
+        type: 'string',
+        enum: ['user', 'feedback', 'project', 'reference'],
+      },
+      content: { type: 'string' },
     },
-    required: ['name', 'description', 'type', 'content']
+    required: ['name', 'description', 'type', 'content'],
   }
 
   isConcurrencySafe = () => false
@@ -75,7 +83,7 @@ export class MemoryUpdateTool implements Tool {
   checkPermissions = () => ({ type: 'allow' as const })
   preparePermissionMatcher = () => null
 
-  async execute(input: any): Promise<string> {
+  async execute(input: MemoryUpdateInput): Promise<string> {
     const memory = getMemoryManager().update(input)
     return `Memory updated: ${memory.name} (${memory.type})`
   }
@@ -87,9 +95,12 @@ export class MemoryDeleteTool implements Tool {
   inputSchema = {
     type: 'object',
     properties: {
-      name: { type: 'string', description: 'Exact name of the memory to delete' }
+      name: {
+        type: 'string',
+        description: 'Exact name of the memory to delete',
+      },
     },
-    required: ['name']
+    required: ['name'],
   }
 
   isConcurrencySafe = () => false
@@ -98,7 +109,7 @@ export class MemoryDeleteTool implements Tool {
   checkPermissions = () => ({ type: 'allow' as const })
   preparePermissionMatcher = () => null
 
-  async execute(input: any): Promise<string> {
+  async execute(input: { name: string }): Promise<string> {
     getMemoryManager().delete(input.name)
     return `Memory deleted: ${input.name}`
   }
@@ -111,22 +122,29 @@ export function initTeamStore(teamDir: string) {
 }
 
 export function getTeamStore(): TeamStore {
-  if (!teamStore) throw new Error('TeamStore not initialized — set memory.teamDir in .agent.yml')
+  if (!teamStore)
+    throw new Error(
+      'TeamStore not initialized — set memory.teamDir in .agent.yml'
+    )
   return teamStore
 }
 
 export class MemoryTeamSaveTool implements Tool {
   name = 'memory_team_save'
-  description = 'Save a memory to the shared team memory directory (requires memory.teamDir in .agent.yml)'
+  description =
+    'Save a memory to the shared team memory directory (requires memory.teamDir in .agent.yml)'
   inputSchema = {
     type: 'object',
     properties: {
       name: { type: 'string' },
       description: { type: 'string' },
-      type: { type: 'string', enum: ['user', 'feedback', 'project', 'reference'] },
-      content: { type: 'string' }
+      type: {
+        type: 'string',
+        enum: ['user', 'feedback', 'project', 'reference'],
+      },
+      content: { type: 'string' },
     },
-    required: ['name', 'description', 'type', 'content']
+    required: ['name', 'description', 'type', 'content'],
   }
 
   isConcurrencySafe = () => false
@@ -135,7 +153,7 @@ export class MemoryTeamSaveTool implements Tool {
   checkPermissions = () => ({ type: 'allow' as const })
   preparePermissionMatcher = () => null
 
-  async execute(input: any): Promise<string> {
+  async execute(input: MemoryCreateInput): Promise<string> {
     getTeamStore().save(input)
     return `Team memory saved: ${input.name} (${input.type})`
   }

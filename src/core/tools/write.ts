@@ -9,10 +9,10 @@ export const WriteTool = createTool({
   inputSchema: {
     type: 'object',
     properties: {
-      path:    { type: 'string', description: 'Path to the file to write' },
-      content: { type: 'string', description: 'Content to write to the file' }
+      path: { type: 'string', description: 'Path to the file to write' },
+      content: { type: 'string', description: 'Content to write to the file' },
     },
-    required: ['path', 'content']
+    required: ['path', 'content'],
   },
   isDestructive: (input: unknown) => {
     const inp = input as { path?: string }
@@ -25,7 +25,7 @@ export const WriteTool = createTool({
       type: 'ask' as const,
       description: isOverwrite
         ? `Overwrite existing file: ${inp.path}`
-        : `Write new file: ${inp.path}`
+        : `Write new file: ${inp.path}`,
     }
   },
   preparePermissionMatcher: (input: unknown) => {
@@ -38,8 +38,11 @@ export const WriteTool = createTool({
       await mkdir(dirname(input.path), { recursive: true })
       await writeFile(input.path, input.content, 'utf-8')
       return `File written: ${input.path}`
-    } catch (error: any) {
-      throw new Error(`Failed to write file: ${error.message}`)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      throw new Error(`Failed to write file: ${message}`, {
+        cause: error,
+      })
     }
-  }
+  },
 })

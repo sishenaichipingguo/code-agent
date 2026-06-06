@@ -21,7 +21,9 @@ export class ConfigLoader {
     if (globalConfig) configs.push(globalConfig)
 
     // 3. Project config (.agent.yml or custom path)
-    const projectConfig = await this.loadYaml(this.customConfigPath || '.agent.yml')
+    const projectConfig = await this.loadYaml(
+      this.customConfigPath || '.agent.yml'
+    )
     if (projectConfig) configs.push(projectConfig)
 
     // 4. Environment variables
@@ -50,7 +52,10 @@ export class ConfigLoader {
       config.apiKey = process.env.ANTHROPIC_API_KEY
     }
 
-    if (process.env.AGENT_MODE === 'safe' || process.env.AGENT_MODE === 'yolo') {
+    if (
+      process.env.AGENT_MODE === 'safe' ||
+      process.env.AGENT_MODE === 'yolo'
+    ) {
       config.mode = process.env.AGENT_MODE
     }
 
@@ -62,13 +67,16 @@ export class ConfigLoader {
   }
 
   private merge(...configs: Partial<Config>[]): Partial<Config> {
-    return configs.reduce<Partial<Config>>((acc, config) => ({
-      ...acc,
-      ...config,
-      tools: { ...acc.tools, ...config.tools },
-      session: { ...acc.session, ...config.session } as Config['session'],
-      logging: { ...acc.logging, ...config.logging } as Config['logging']
-    }), {})
+    return configs.reduce<Partial<Config>>(
+      (acc, config) => ({
+        ...acc,
+        ...config,
+        tools: { ...acc.tools, ...config.tools },
+        session: { ...acc.session, ...config.session } as Config['session'],
+        logging: { ...acc.logging, ...config.logging } as Config['logging'],
+      }),
+      {}
+    )
   }
 }
 

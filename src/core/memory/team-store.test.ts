@@ -18,7 +18,12 @@ describe('TeamStore', () => {
   it('save() creates file in teamDir and updates team MEMORY.md', () => {
     const teamDir = join(tmpDir, 'team')
     const store = new TeamStore(teamDir)
-    store.save({ name: 'shared-rule', description: 'team uses tabs', type: 'feedback', content: 'Use tabs.' })
+    store.save({
+      name: 'shared-rule',
+      description: 'team uses tabs',
+      type: 'feedback',
+      content: 'Use tabs.',
+    })
     expect(existsSync(join(teamDir, 'feedback_shared-rule.md'))).toBe(true)
     expect(store.loadIndex()).toContain('[shared-rule]')
   })
@@ -31,7 +36,12 @@ describe('TeamStore', () => {
   it('save() and load() round-trip correctly', () => {
     const teamDir = join(tmpDir, 'team')
     const store = new TeamStore(teamDir)
-    store.save({ name: 'style', description: 'coding style', type: 'feedback', content: 'No semicolons.' })
+    store.save({
+      name: 'style',
+      description: 'coding style',
+      type: 'feedback',
+      content: 'No semicolons.',
+    })
     expect(store.loadIndex()).toContain('[style]')
     expect(store.loadIndex()).toContain('coding style')
   })

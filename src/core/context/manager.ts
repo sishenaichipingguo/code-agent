@@ -9,13 +9,18 @@ import type { HookManager } from '@/core/hooks/manager'
 export type CompressionStrategy = 'auto' | 'micro' | 'manual'
 
 const COMPRESS_THRESHOLD = 0.8
-const PTL_PATTERNS = ['prompt is too long', 'prompt_too_long', 'context_length_exceeded', 'maximum context length']
+const PTL_PATTERNS = [
+  'prompt is too long',
+  'prompt_too_long',
+  'context_length_exceeded',
+  'maximum context length',
+]
 
 export class ContextManager {
   private compressors = {
     auto: new AutoCompressor(),
     micro: new MicroCompactor(),
-    manual: new ManualCompactor()
+    manual: new ManualCompactor(),
   }
 
   constructor(
@@ -29,25 +34,41 @@ export class ContextManager {
     return inputTokens > limit * COMPRESS_THRESHOLD
   }
 
-  async compress(messages: RawMessage[], strategy: CompressionStrategy = 'auto'): Promise<RawMessage[]> {
-    const hookEnv: Record<string, string> = { AGENT_COMPRESS_STRATEGY: strategy }
+  async compress(
+    messages: RawMessage[],
+    strategy: CompressionStrategy = 'auto'
+  ): Promise<RawMessage[]> {
+    const hookEnv: Record<string, string> = {
+      AGENT_COMPRESS_STRATEGY: strategy,
+    }
 
     // pre-compress: transform — hook may archive or modify messages before summarisation
     let effectiveMessages = messages
     if (this.hooks) {
-      const transformed = await this.hooks.transform('pre-compress', { messages }, hookEnv)
+      const transformed = await this.hooks.transform(
+        'pre-compress',
+        { messages },
+        hookEnv
+      )
       effectiveMessages = transformed.messages
     }
 
     const compressor = this.compressors[strategy]
-    const result = await compressor.run(effectiveMessages, this.model, this.modelName)
-    const compressed = [this.buildPostCompressMessage(result.summary, strategy), ...result.messages]
+    const result = await compressor.run(
+      effectiveMessages,
+      this.model,
+      this.modelName
+    )
+    const compressed = [
+      this.buildPostCompressMessage(result.summary, strategy),
+      ...result.messages,
+    ]
 
     // post-compress: notify
     await this.hooks?.fire('post-compress', {
       ...hookEnv,
       AGENT_COMPRESS_ORIGINAL_COUNT: String(messages.length),
-      AGENT_COMPRESS_RESULT_COUNT: String(compressed.length)
+      AGENT_COMPRESS_RESULT_COUNT: String(compressed.length),
     })
 
     return compressed
@@ -68,15 +89,21 @@ export class ContextManager {
     }
   }
 
-  private buildPostCompressMessage(summary: string, strategy: CompressionStrategy): RawMessage {
-    const label = strategy === 'manual' ? 'manual /compact' : `auto (${strategy})`
+  private buildPostCompressMessage(
+    summary: string,
+    strategy: CompressionStrategy
+  ): RawMessage {
+    const label =
+      strategy === 'manual' ? 'manual /compact' : `auto (${strategy})`
     return {
       role: 'user',
       content: [
         `[Context compressed — ${label}]`,
         summary ? `Summary: ${summary}` : '',
-        'The full conversation history above this point has been summarized. Continue the current task using this context.'
-      ].filter(Boolean).join('\n')
+        'The full conversation history above this point has been summarized. Continue the current task using this context.',
+      ]
+        .filter(Boolean)
+        .join('\n'),
     }
   }
 }

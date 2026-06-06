@@ -7,11 +7,11 @@ export const EditTool = createTool({
   inputSchema: {
     type: 'object',
     properties: {
-      path:     { type: 'string' },
+      path: { type: 'string' },
       old_text: { type: 'string', description: 'Text to replace' },
-      new_text: { type: 'string', description: 'New text to insert' }
+      new_text: { type: 'string', description: 'New text to insert' },
     },
-    required: ['path', 'old_text', 'new_text']
+    required: ['path', 'old_text', 'new_text'],
   },
   checkPermissions: (input: unknown) => {
     const inp = input as { path?: string }
@@ -22,14 +22,24 @@ export const EditTool = createTool({
     if (typeof inp.path !== 'string') return null
     return { kind: 'path-glob' as const, glob: inp.path }
   },
-  async execute(input: { path: string; old_text: string; new_text: string }): Promise<string> {
+  async execute(input: {
+    path: string
+    old_text: string
+    new_text: string
+  }): Promise<string> {
     try {
       const content = await readFile(input.path, 'utf-8')
-      if (!content.includes(input.old_text)) throw new Error('Old text not found in file')
-      await writeFile(input.path, content.replace(input.old_text, input.new_text), 'utf-8')
+      if (!content.includes(input.old_text))
+        throw new Error('Old text not found in file')
+      await writeFile(
+        input.path,
+        content.replace(input.old_text, input.new_text),
+        'utf-8'
+      )
       return `File edited: ${input.path}`
-    } catch (error: any) {
-      throw new Error(`Failed to edit file: ${error.message}`)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      throw new Error(`Failed to edit file: ${message}`, { cause: error })
     }
-  }
+  },
 })

@@ -20,17 +20,21 @@ export class PluginManager {
         if (!existsSync(manifestPath)) continue
 
         try {
-          const manifest: PluginManifest = JSON.parse(readFileSync(manifestPath, 'utf-8'))
+          const manifest: PluginManifest = JSON.parse(
+            readFileSync(manifestPath, 'utf-8')
+          )
           if (!manifest.name || !manifest.version) continue
           this.loaded.delete(manifest.name)
           this.loaded.set(manifest.name, {
             name: manifest.name,
             version: manifest.version,
             dir: pluginDir,
-            skills: manifest.skills
+            skills: manifest.skills,
           })
         } catch (err: any) {
-          process.stderr.write(`[plugin-manager] Failed to load plugin at ${pluginDir}: ${err.message}\n`)
+          process.stderr.write(
+            `[plugin-manager] Failed to load plugin at ${pluginDir}: ${err.message}\n`
+          )
         }
       }
     }

@@ -1,6 +1,10 @@
 import type { BackendType } from './backends/types'
 
-export type SubAgentType = 'general-purpose' | 'explore' | 'plan' | 'context-gatherer'
+export type SubAgentType =
+  | 'general-purpose'
+  | 'explore'
+  | 'plan'
+  | 'context-gatherer'
 
 export interface SubAgentConfig {
   type: SubAgentType

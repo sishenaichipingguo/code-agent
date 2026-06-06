@@ -1,6 +1,8 @@
+import type { ContentBlock } from '@/core/models/types'
+
 export interface RawMessage {
   role: 'user' | 'assistant'
-  content: any
+  content: string | ContentBlock[]
 }
 
 export interface CompressorResult {
@@ -11,5 +13,9 @@ export interface CompressorResult {
 }
 
 export interface Compressor {
-  run(messages: RawMessage[], model: import('@/core/models/adapter').ModelAdapter, modelName: string): Promise<CompressorResult>
+  run(
+    messages: RawMessage[],
+    model: import('@/core/models/adapter').ModelAdapter,
+    modelName: string
+  ): Promise<CompressorResult>
 }

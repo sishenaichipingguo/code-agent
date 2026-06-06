@@ -44,7 +44,6 @@ try {
     if (observations.length > 0) {
       console.log(`  Observations: ${observations.length}`)
       observations.forEach((obs, obsIdx) => {
-        const obsDate = new Date(obs.created_at).toLocaleString()
         const preview = obs.content.slice(0, 80).replace(/\n/g, ' ')
         console.log(`    ${obsIdx + 1}. [${obs.type}] ${preview}...`)
       })

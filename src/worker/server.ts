@@ -18,19 +18,30 @@ import type {
   SearchRequest,
   SearchResponse,
   RecallRequest,
-  RecallResponse
+  RecallResponse,
 } from './types'
 import { homedir } from 'os'
 import { join } from 'path'
+import { initLogger } from '../infra/logger'
 
 const PORT = process.env.WORKER_PORT ? parseInt(process.env.WORKER_PORT) : 37777
 const DATA_DIR = process.env.WORKER_DATA_DIR || join(homedir(), '.claude-mem')
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || ''
 const WORKER_MODEL = process.env.WORKER_MODEL || 'claude-3-5-sonnet-20241022'
 
+const logger = initLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  file: join(DATA_DIR, 'worker.log'),
+})
+
 if (!ANTHROPIC_API_KEY) {
-  console.error('Error: ANTHROPIC_API_KEY environment variable is required')
+  logger.error('ANTHROPIC_API_KEY environment variable is required')
   process.exit(1)
+}
+
+// Narrow an unknown caught value to a human-readable message.
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 const app = express()
@@ -46,16 +57,18 @@ const chroma = new ChromaManager(DATA_DIR)
 let isReady = false
 ;(async () => {
   try {
-    console.log('🔄 Initializing embedding model...')
+    logger.info('Initializing embedding model...')
     await initEmbeddingModel()
 
-    console.log('🔄 Initializing ChromaDB...')
+    logger.info('Initializing ChromaDB...')
     await chroma.init()
 
     isReady = true
-    console.log('✅ Memory system fully initialized')
-  } catch (error: any) {
-    console.error('❌ Failed to initialize memory system:', error.message)
+    logger.info('Memory system fully initialized')
+  } catch (error) {
+    logger.error('Failed to initialize memory system', {
+      error: errorMessage(error),
+    })
     process.exit(1)
   }
 })()
@@ -75,7 +88,7 @@ app.post('/api/sessions/init', async (req, res) => {
         sessionDbId: -1,
         promptNumber: 0,
         skipped: true,
-        reason: 'Project is in excluded list'
+        reason: 'Project is in excluded list',
       } as SessionInitResponse)
     }
 
@@ -84,16 +97,16 @@ app.post('/api/sessions/init', async (req, res) => {
       project: body.project,
       platformSource: body.platformSource,
       cwd: body.cwd || process.cwd(),
-      prompt: body.prompt
+      prompt: body.prompt,
     })
 
     res.json({
       sessionDbId: result.sessionDbId,
-      promptNumber: result.promptNumber
+      promptNumber: result.promptNumber,
     } as SessionInitResponse)
-  } catch (error: any) {
-    console.error('Session init error:', error)
-    res.status(500).json({ error: error.message })
+  } catch (error) {
+    logger.error('Session init error', { error: errorMessage(error) })
+    res.status(500).json({ error: errorMessage(error) })
   }
 })
 
@@ -105,16 +118,16 @@ app.post('/api/sessions/observations', async (req, res) => {
       contentSessionId: body.contentSessionId,
       toolName: body.toolName,
       toolInput: body.toolInput,
-      toolResponse: body.toolResponse
+      toolResponse: body.toolResponse,
     })
 
     res.json({
       observationId: result.observationId,
-      queued: true
+      queued: true,
     } as ObservationResponse)
-  } catch (error: any) {
-    console.error('Observation error:', error)
-    res.status(500).json({ error: error.message })
+  } catch (error) {
+    logger.error('Observation error', { error: errorMessage(error) })
+    res.status(500).json({ error: errorMessage(error) })
   }
 })
 
@@ -124,16 +137,16 @@ app.post('/api/sessions/summarize', async (req, res) => {
 
     const result = await sessionManager.addSummary({
       contentSessionId: body.contentSessionId,
-      lastAssistantMessage: body.lastAssistantMessage
+      lastAssistantMessage: body.lastAssistantMessage,
     })
 
     res.json({
       summaryId: result.summaryId,
-      queued: true
+      queued: true,
     } as SummarizeResponse)
-  } catch (error: any) {
-    console.error('Summarize error:', error)
-    res.status(500).json({ error: error.message })
+  } catch (error) {
+    logger.error('Summarize error', { error: errorMessage(error) })
+    res.status(500).json({ error: errorMessage(error) })
   }
 })
 
@@ -144,11 +157,11 @@ app.post('/api/sessions/complete', async (req, res) => {
     sessionManager.completeSession(body.contentSessionId)
 
     res.json({
-      success: true
+      success: true,
     } as SessionCompleteResponse)
-  } catch (error: any) {
-    console.error('Session complete error:', error)
-    res.status(500).json({ error: error.message })
+  } catch (error) {
+    logger.error('Session complete error', { error: errorMessage(error) })
+    res.status(500).json({ error: errorMessage(error) })
   }
 })
 
@@ -160,11 +173,11 @@ app.get('/api/sessions/status/:contentSessionId', async (req, res) => {
 
     res.json({
       queueLength: status.queueLength,
-      processing: status.processing
+      processing: status.processing,
     } as SessionStatusResponse)
-  } catch (error: any) {
-    console.error('Session status error:', error)
-    res.status(500).json({ error: error.message })
+  } catch (error) {
+    logger.error('Session status error', { error: errorMessage(error) })
+    res.status(500).json({ error: errorMessage(error) })
   }
 })
 
@@ -172,15 +185,15 @@ app.get('/api/sessions/status/:contentSessionId', async (req, res) => {
 
 app.get('/api/search', async (req, res) => {
   try {
-    const query = req.query as any
+    const query = req.query as Record<string, string | undefined>
     const params: SearchRequest = {
       query: query.q,
       project: query.project,
-      type: query.type,
+      type: query.type as SearchRequest['type'],
       startDate: query.startDate ? parseInt(query.startDate) : undefined,
       endDate: query.endDate ? parseInt(query.endDate) : undefined,
       limit: query.limit ? parseInt(query.limit) : 50,
-      offset: query.offset ? parseInt(query.offset) : 0
+      offset: query.offset ? parseInt(query.offset) : 0,
     }
 
     // 目前只实现 SQLite 搜索，ChromaDB 语义搜索留待后续
@@ -190,17 +203,17 @@ app.get('/api/search', async (req, res) => {
       startDate: params.startDate,
       endDate: params.endDate,
       limit: params.limit,
-      offset: params.offset
+      offset: params.offset,
     })
 
     res.json({
       observations: result.observations,
       total: result.total,
-      fellBack: false
+      fellBack: false,
     } as SearchResponse)
-  } catch (error: any) {
-    console.error('Search error:', error)
-    res.status(500).json({ error: error.message })
+  } catch (error) {
+    logger.error('Search error', { error: errorMessage(error) })
+    res.status(500).json({ error: errorMessage(error) })
   }
 })
 
@@ -218,7 +231,7 @@ app.post('/api/recall', async (req, res) => {
     const results = await chroma.searchSimilar(body.query, {
       project: body.project,
       limit: body.limit || 10,
-      minScore: 0.3
+      minScore: 0.3,
     })
 
     // 格式化为结构化文本
@@ -227,21 +240,23 @@ app.post('/api/recall', async (req, res) => {
     res.json({
       memories: results,
       formattedText: formattedMemories,
-      count: results.length
+      count: results.length,
     } as RecallResponse)
-  } catch (error: any) {
-    console.error('Recall error:', error)
-    res.status(500).json({ error: error.message })
+  } catch (error) {
+    logger.error('Recall error', { error: errorMessage(error) })
+    res.status(500).json({ error: errorMessage(error) })
   }
 })
 
-function formatMemoriesForPrompt(memories: Array<{
-  content: string
-  type: string
-  createdAt: number
-  metadata: any
-  score: number
-}>): string {
+function formatMemoriesForPrompt(
+  memories: Array<{
+    content: string
+    type: string
+    createdAt: number
+    metadata: Record<string, unknown>
+    score: number
+  }>
+): string {
   if (memories.length === 0) {
     return ''
   }
@@ -279,20 +294,22 @@ app.get('/health', (req, res) => {
 // ============ Start Server ============
 
 app.listen(PORT, () => {
-  console.log(`🚀 Worker Service running on http://localhost:${PORT}`)
-  console.log(`📁 Data directory: ${DATA_DIR}`)
-  console.log(`🔑 API Key: ${ANTHROPIC_API_KEY.slice(0, 10)}...`)
+  logger.info('Worker service running', {
+    url: `http://localhost:${PORT}`,
+    dataDir: DATA_DIR,
+    apiKeyConfigured: ANTHROPIC_API_KEY.length > 0,
+  })
 })
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('SIGTERM received, closing database...')
+  logger.info('SIGTERM received, closing database...')
   db.close()
   process.exit(0)
 })
 
 process.on('SIGINT', () => {
-  console.log('SIGINT received, closing database...')
+  logger.info('SIGINT received, closing database...')
   db.close()
   process.exit(0)
 })

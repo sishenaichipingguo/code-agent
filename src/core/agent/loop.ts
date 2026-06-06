@@ -1,11 +1,23 @@
 import type { ModelAdapter } from '@/core/models/adapter'
+import type {
+  ContentBlock,
+  UnifiedRequest,
+  ToolUseBlock,
+} from '@/core/models/types'
 import type { ToolRegistry } from '@/core/tools/registry'
 import type { Logger } from '@/infra/logger'
-import type { ContextManager, CompressionStrategy } from '@/core/context/manager'
+import type {
+  ContextManager,
+  CompressionStrategy,
+} from '@/core/context/manager'
 import type { SessionManager } from '@/core/session/manager'
 import type { PermissionContext } from '@/core/permissions'
 import type { HookManager } from '@/core/hooks/manager'
 import { getMetrics } from '@/infra/metrics'
+
+// Message content is either plain text or an array of structured content
+// blocks (text / tool_use / tool_result), matching the model adapters.
+type MessageContent = string | ContentBlock[]
 
 export interface AgentContext {
   model: ModelAdapter
@@ -15,20 +27,44 @@ export interface AgentContext {
   streaming?: boolean
   contextManager?: ContextManager
   systemPrompt?: string
-  initialMessages?: Array<{ role: 'user' | 'assistant'; content: any }>
+  initialMessages?: Array<{
+    role: 'user' | 'assistant'
+    content: MessageContent
+  }>
   sessionManager?: SessionManager
   hooks?: HookManager
   memoryRecallFn?: (query: string, project?: string) => Promise<string>
-  onChunk?: (chunk:
-    | { type: 'text'; content: string }
-    | { type: 'tool_start'; name: string; input: string }
-    | { type: 'tool_end'; name: string; duration: number; result: string; error?: string }
+  onChunk?: (
+    chunk:
+      | { type: 'text'; content: string }
+      | { type: 'tool_start'; name: string; input: string }
+      | {
+          type: 'tool_end'
+          name: string
+          duration: number
+          result: string
+          error?: string
+        }
   ) => void
 }
 
 interface Message {
   role: 'user' | 'assistant'
-  content: any
+  content: MessageContent
+}
+
+// A tool invocation requested by the model.
+interface ToolUseRequest {
+  id: string
+  name: string
+  input: Record<string, unknown>
+}
+
+// The outcome of executing a single tool.
+interface ToolExecutionResult {
+  id: string
+  result?: unknown
+  error?: string
 }
 
 export class AgentLoop {
@@ -61,7 +97,8 @@ export class AgentLoop {
       await this.context.hooks?.fire('user-prompt-submit', {
         ...hookEnv,
         USER_PROMPT: userMessage,
-        SESSION_ID: this.context.sessionManager?.getCurrentSession()?.id || 'unknown'
+        SESSION_ID:
+          this.context.sessionManager?.getCurrentSession()?.id || 'unknown',
       })
 
       // Recall relevant memories from past sessions
@@ -70,10 +107,14 @@ export class AgentLoop {
         try {
           recalledMemories = await this.context.memoryRecallFn(userMessage)
           if (recalledMemories) {
-            this.context.logger.debug('Recalled memories', { length: recalledMemories.length })
+            this.context.logger.debug('Recalled memories', {
+              length: recalledMemories.length,
+            })
           }
-        } catch (error: any) {
-          this.context.logger.warn('Memory recall failed', { error: error.message })
+        } catch (error) {
+          this.context.logger.warn('Memory recall failed', {
+            error: error instanceof Error ? error.message : String(error),
+          })
         }
       }
 
@@ -85,17 +126,23 @@ export class AgentLoop {
       let turn = 0
       while (true) {
         turn++
-        const request = {
+        const request: UnifiedRequest = {
           model: this.context.model.name,
-          messages,
+          messages: messages as UnifiedRequest['messages'],
           stream: !!this.context.streaming,
-          system: dynamicSystemPrompt
+          system: dynamicSystemPrompt,
         }
 
-        this.context.logger.debug(`Turn ${turn}: sending ${messages.length} messages`, {
-          lastMessage: JSON.stringify(messages[messages.length - 1]).slice(0, 300),
-          allMessages: JSON.stringify(messages).slice(0, 3000)
-        })
+        this.context.logger.debug(
+          `Turn ${turn}: sending ${messages.length} messages`,
+          {
+            lastMessage: JSON.stringify(messages[messages.length - 1]).slice(
+              0,
+              300
+            ),
+            allMessages: JSON.stringify(messages).slice(0, 3000),
+          }
+        )
 
         if (this.context.streaming && this.context.model.chatStream) {
           const result = await this.runWithStream(request, messages)
@@ -106,20 +153,30 @@ export class AgentLoop {
           await this.maybeCompress(messages, result.inputTokens)
         } else {
           const response = this.context.contextManager
-            ? await this.context.contextManager.ptlRetry(messages as any, () =>
-                metrics.measure('api-call', () => this.context.model.chat(request, this.context.tools))
+            ? await this.context.contextManager.ptlRetry(messages, () =>
+                metrics.measure('api-call', () =>
+                  this.context.model.chat(request, this.context.tools)
+                )
               )
-            : await metrics.measure('api-call', () => this.context.model.chat(request, this.context.tools))
+            : await metrics.measure('api-call', () =>
+                this.context.model.chat(request, this.context.tools)
+              )
 
           await this.maybeCompress(messages, response.inputTokens)
 
           if (response.type === 'text') {
             let text = response.content ?? ''
-            const sampled = await this.context.hooks?.transform('post-sampling', { text }, hookEnv)
+            const sampled = await this.context.hooks?.transform(
+              'post-sampling',
+              { text },
+              hookEnv
+            )
             if (sampled) text = sampled.text
             process.stderr.write('\n' + text + '\n')
             finalText = text
-            const assistantContent = response.rawContent ?? [{ type: 'text', text: finalText }]
+            const assistantContent = response.rawContent ?? [
+              { type: 'text', text: finalText },
+            ]
             messages.push({ role: 'assistant', content: assistantContent })
             await this.saveMessage('assistant', assistantContent)
             break
@@ -128,14 +185,18 @@ export class AgentLoop {
           if (response.type === 'tool_use') {
             const results = await this.executeTools(response.tools ?? [])
 
-            const assistantContent = response.rawContent ?? response.tools
+            const assistantContent: ContentBlock[] =
+              response.rawContent ?? response.tools ?? []
             messages.push({ role: 'assistant', content: assistantContent })
             await this.saveMessage('assistant', assistantContent)
 
             const toolResults = results.map(r => ({
               type: 'tool_result',
               tool_use_id: r.id,
-              content: typeof r.result === 'string' ? r.result : JSON.stringify(r.result)
+              content:
+                typeof r.result === 'string'
+                  ? r.result
+                  : JSON.stringify(r.result),
             }))
             messages.push({ role: 'user', content: toolResults })
             await this.saveMessage('user', toolResults)
@@ -148,8 +209,10 @@ export class AgentLoop {
           }
         }
       }
-    } catch (error: any) {
-      this.context.logger.error('Agent loop failed', { error: error.message })
+    } catch (error) {
+      this.context.logger.error('Agent loop failed', {
+        error: error instanceof Error ? error.message : String(error),
+      })
       throw error
     } finally {
       await this.context.hooks?.fire('session-end', hookEnv)
@@ -158,18 +221,33 @@ export class AgentLoop {
     return finalText
   }
 
-  private async saveMessage(role: 'user' | 'assistant', content: any) {
+  private async saveMessage(
+    role: 'user' | 'assistant',
+    content: MessageContent
+  ) {
     if (this.context.sessionManager) {
       await this.context.sessionManager.saveMessage(role, content)
     }
   }
 
-  private async maybeCompress(messages: Message[], inputTokens?: number, strategy: CompressionStrategy = 'auto') {
+  private async maybeCompress(
+    messages: Message[],
+    inputTokens?: number,
+    strategy: CompressionStrategy = 'auto'
+  ) {
     if (!this.context.contextManager || !inputTokens) return
     if (this.context.contextManager.shouldCompress(inputTokens)) {
-      this.context.logger.warn('Context approaching limit, compressing history', { inputTokens, strategy })
-      process.stderr.write(`⚠️  Context at ${inputTokens.toLocaleString()} tokens — compressing (${strategy})...\n`)
-      const compressed = await this.context.contextManager.compress(messages as any, strategy)
+      this.context.logger.warn(
+        'Context approaching limit, compressing history',
+        { inputTokens, strategy }
+      )
+      process.stderr.write(
+        `⚠️  Context at ${inputTokens.toLocaleString()} tokens — compressing (${strategy})...\n`
+      )
+      const compressed = await this.context.contextManager.compress(
+        messages,
+        strategy
+      )
       messages.splice(0, messages.length, ...compressed)
       process.stderr.write(`✓ Compressed to ${compressed.length} messages\n`)
     }
@@ -177,13 +255,20 @@ export class AgentLoop {
 
   async compact(messages: Message[]): Promise<void> {
     if (!this.context.contextManager) {
-      process.stderr.write('⚠️  No context manager configured, /compact unavailable\n')
+      process.stderr.write(
+        '⚠️  No context manager configured, /compact unavailable\n'
+      )
       return
     }
     process.stderr.write('🗜  Compressing context on request...\n')
-    const compressed = await this.context.contextManager.compress(messages as any, 'manual')
+    const compressed = await this.context.contextManager.compress(
+      messages,
+      'manual'
+    )
     messages.splice(0, messages.length, ...compressed)
-    process.stderr.write(`✓ Context compressed to ${compressed.length} messages\n`)
+    process.stderr.write(
+      `✓ Context compressed to ${compressed.length} messages\n`
+    )
   }
 
   getMessages(): Message[] {
@@ -194,7 +279,9 @@ export class AgentLoop {
     this._messages = []
   }
 
-  private async executeTools(tools: any[]): Promise<any[]> {
+  private async executeTools(
+    tools: ToolUseRequest[]
+  ): Promise<ToolExecutionResult[]> {
     const metrics = getMetrics()
 
     // Check if all tools in this batch are concurrency-safe (safe to parallelize)
@@ -203,23 +290,35 @@ export class AgentLoop {
       return tool?.isConcurrencySafe(t.input) ?? false
     })
 
-    const runTool = async (tool: any) => {
+    const runTool = async (
+      tool: ToolUseRequest
+    ): Promise<ToolExecutionResult> => {
       const startTime = Date.now()
 
       this.context.onChunk?.({
         type: 'tool_start',
         name: tool.name,
-        input: tool.input ? JSON.stringify(tool.input).slice(0, 120) : ''
+        input: tool.input ? JSON.stringify(tool.input).slice(0, 120) : '',
       })
 
       try {
         const result = await metrics.measure('tool-execution', () =>
-          this.context.tools.execute(tool.name, tool.input, this.context.permissionContext)
+          this.context.tools.execute(
+            tool.name,
+            tool.input,
+            this.context.permissionContext
+          )
         )
         const duration = Date.now() - startTime
-        const resultStr = typeof result === 'string' ? result : JSON.stringify(result)
+        const resultStr =
+          typeof result === 'string' ? result : JSON.stringify(result)
 
-        this.context.onChunk?.({ type: 'tool_end', name: tool.name, duration, result: resultStr })
+        this.context.onChunk?.({
+          type: 'tool_end',
+          name: tool.name,
+          duration,
+          result: resultStr,
+        })
 
         // Trigger post-tool-use hook for recording observation
         await this.context.hooks?.fire('post-tool-use', {
@@ -227,19 +326,34 @@ export class AgentLoop {
           TOOL_NAME: tool.name,
           TOOL_INPUT: JSON.stringify(tool.input),
           TOOL_RESULT: resultStr.slice(0, 10000), // Limit size to avoid env var overflow
-          SESSION_ID: this.context.sessionManager?.getCurrentSession()?.id || 'unknown'
+          SESSION_ID:
+            this.context.sessionManager?.getCurrentSession()?.id || 'unknown',
         })
 
         return { id: tool.id, result }
-      } catch (error: any) {
+      } catch (error) {
         const duration = Date.now() - startTime
         const { AgentError } = await import('@/infra/errors')
-        const errorMsg = error instanceof AgentError ? error.toUserMessage() : (error.message || String(error))
+        const errorMsg =
+          error instanceof AgentError
+            ? error.toUserMessage()
+            : error instanceof Error
+              ? error.message
+              : String(error)
 
-        this.context.onChunk?.({ type: 'tool_end', name: tool.name, duration, result: '', error: errorMsg })
+        this.context.onChunk?.({
+          type: 'tool_end',
+          name: tool.name,
+          duration,
+          result: '',
+          error: errorMsg,
+        })
 
-        this.context.logger.error('Tool execution failed', { tool: tool.name, error: error.message })
-        return { id: tool.id, error: error.message }
+        this.context.logger.error('Tool execution failed', {
+          tool: tool.name,
+          error: errorMsg,
+        })
+        return { id: tool.id, error: errorMsg }
       }
     }
 
@@ -247,14 +361,14 @@ export class AgentLoop {
       return Promise.all(tools.map(runTool))
     }
 
-    const results: any[] = []
+    const results: ToolExecutionResult[] = []
     for (const tool of tools) {
       results.push(await runTool(tool))
     }
     return results
   }
 
-  private formatValue(value: any): string {
+  private formatValue(value: unknown): string {
     if (typeof value === 'string') {
       // Truncate long strings
       if (value.length > 100) {
@@ -273,7 +387,7 @@ export class AgentLoop {
   }
 
   private async runWithStream(
-    request: any,
+    request: UnifiedRequest,
     messages: Message[],
     attempt = 0
   ): Promise<{ done: boolean; text: string; inputTokens?: number }> {
@@ -282,7 +396,7 @@ export class AgentLoop {
     try {
       const stream = this.context.model.chatStream(request, this.context.tools)
       let fullText = ''
-      const completedTools = new Map<number, any>()
+      const completedTools = new Map<number, ToolUseBlock>()
       let hasTools = false
       let inputTokens: number | undefined
 
@@ -293,7 +407,11 @@ export class AgentLoop {
           this.context.onChunk?.({ type: 'text', content: chunk.content })
         }
 
-        if (chunk.type === 'tool_use' && chunk.tool && chunk.toolIndex !== undefined) {
+        if (
+          chunk.type === 'tool_use' &&
+          chunk.tool &&
+          chunk.toolIndex !== undefined
+        ) {
           if (chunk.tool.input && Object.keys(chunk.tool.input).length > 0) {
             completedTools.set(chunk.toolIndex, chunk.tool)
             hasTools = true
@@ -305,13 +423,28 @@ export class AgentLoop {
 
           if (hasTools && completedTools.size > 0) {
             const tools = Array.from(completedTools.values())
-            this.context.logger.debug('Executing tools', { tools: tools.map(t => ({ name: t.name, input: t.input })) })
+            this.context.logger.debug('Executing tools', {
+              tools: tools.map(t => ({ name: t.name, input: t.input })),
+            })
             const results = await this.executeTools(tools)
-            this.context.logger.debug('Tool results', { results: results.map(r => ({ id: r.id, result: String(r.result ?? r.error).slice(0, 200) })) })
+            this.context.logger.debug('Tool results', {
+              results: results.map(r => ({
+                id: r.id,
+                result: String(r.result ?? r.error).slice(0, 200),
+              })),
+            })
 
-            const assistantContent: any[] = []
-            if (fullText) assistantContent.push({ type: 'text', text: fullText })
-            tools.forEach(t => assistantContent.push({ type: 'tool_use', id: t.id, name: t.name, input: t.input }))
+            const assistantContent: ContentBlock[] = []
+            if (fullText)
+              assistantContent.push({ type: 'text', text: fullText })
+            tools.forEach(t =>
+              assistantContent.push({
+                type: 'tool_use',
+                id: t.id,
+                name: t.name,
+                input: t.input,
+              })
+            )
 
             messages.push({ role: 'assistant', content: assistantContent })
             await this.saveMessage('assistant', assistantContent)
@@ -319,7 +452,10 @@ export class AgentLoop {
             const toolResults = results.map(r => ({
               type: 'tool_result',
               tool_use_id: r.id,
-              content: typeof r.result === 'string' ? r.result : JSON.stringify(r.result)
+              content:
+                typeof r.result === 'string'
+                  ? r.result
+                  : JSON.stringify(r.result),
             }))
             messages.push({ role: 'user', content: toolResults })
             await this.saveMessage('user', toolResults)
@@ -330,10 +466,19 @@ export class AgentLoop {
           // Pure text response — save assistant message
           if (fullText) {
             const hookEnv = { AGENT_CWD: process.cwd() }
-            const sampled = await this.context.hooks?.transform('post-sampling', { text: fullText }, hookEnv)
+            const sampled = await this.context.hooks?.transform(
+              'post-sampling',
+              { text: fullText },
+              hookEnv
+            )
             const displayText = sampled?.text ?? fullText
-            messages.push({ role: 'assistant', content: [{ type: 'text', text: fullText }] })
-            await this.saveMessage('assistant', [{ type: 'text', text: fullText }])
+            messages.push({
+              role: 'assistant',
+              content: [{ type: 'text', text: fullText }],
+            })
+            await this.saveMessage('assistant', [
+              { type: 'text', text: fullText },
+            ])
             return { done: true, text: displayText, inputTokens }
           }
           return { done: true, text: fullText, inputTokens }
@@ -341,23 +486,34 @@ export class AgentLoop {
       }
 
       return { done: true, text: fullText, inputTokens }
-    } catch (error: any) {
+    } catch (error) {
       const { AgentError } = await import('@/infra/errors')
       const maxRetries = 10
       const baseDelay = 1000
       const maxDelay = 60000
 
-      if (error instanceof AgentError && error.recoverable && attempt < maxRetries) {
+      if (
+        error instanceof AgentError &&
+        error.recoverable &&
+        attempt < maxRetries
+      ) {
         // Index retreats, everything shakes（Full Jitter）
-        const exponentialDelay = Math.min(maxDelay, baseDelay * Math.pow(2, attempt))
+        const exponentialDelay = Math.min(
+          maxDelay,
+          baseDelay * Math.pow(2, attempt)
+        )
         const delay = Math.random() * exponentialDelay
 
+        const errorDetail = error as Error & {
+          status?: number
+          code?: string
+        }
         this.context.logger.warn(
           `Stream failed, retrying (${attempt + 1}/${maxRetries})`,
           {
             error: error.message,
-            errorType: (error as any).status || (error as any).code,
-            nextRetryIn: `${(delay / 1000).toFixed(1)}s`
+            errorType: errorDetail.status || errorDetail.code,
+            nextRetryIn: `${(delay / 1000).toFixed(1)}s`,
           }
         )
 

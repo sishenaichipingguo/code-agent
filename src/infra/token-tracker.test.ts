@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach } from 'bun:test'
-import { TokenTracker, initTokenTracker, getTokenTracker } from './token-tracker'
+import {
+  TokenTracker,
+  initTokenTracker,
+  getTokenTracker,
+} from './token-tracker'
 
 describe('TokenTracker', () => {
   let tracker: TokenTracker
@@ -90,7 +94,7 @@ describe('initTokenTracker / getTokenTracker', () => {
   it('getTokenTracker throws if not initialized', () => {
     // Reset the module-level tracker by re-importing won't work easily,
     // so we just verify the happy path works after init
-    const t = initTokenTracker()
+    initTokenTracker()
     expect(() => getTokenTracker()).not.toThrow()
   })
 })

@@ -36,7 +36,9 @@ export async function runYoloUI(args: Args) {
     const apiKey = process.env.ANTHROPIC_API_KEY || config.apiKey
     if (!apiKey) {
       process.stderr.write('⚠️  Memory system requires ANTHROPIC_API_KEY\n')
-      process.stderr.write('   Set it with: export ANTHROPIC_API_KEY="your-key"\n')
+      process.stderr.write(
+        '   Set it with: export ANTHROPIC_API_KEY="your-key"\n'
+      )
       process.stderr.write('   Continuing without memory...\n')
     } else {
       try {
@@ -44,7 +46,7 @@ export async function runYoloUI(args: Args) {
         workerManager = new WorkerManager({
           apiKey,
           verbose: args.verbose,
-          dataDir: join(os.homedir(), '.claude-mem')
+          dataDir: join(os.homedir(), '.claude-mem'),
         })
         await workerManager.start()
 
@@ -56,7 +58,9 @@ export async function runYoloUI(args: Args) {
 
         logger.info('Memory system started', { port: workerManager.getPort() })
       } catch (error: any) {
-        process.stderr.write(`⚠️  Failed to start memory system: ${error.message}\n`)
+        process.stderr.write(
+          `⚠️  Failed to start memory system: ${error.message}\n`
+        )
         process.stderr.write('   Continuing without memory...\n')
         workerManager = undefined
       }
@@ -89,7 +93,9 @@ export async function runYoloUI(args: Args) {
 
     // Show tip for non-verbose mode
     if (!args.verbose) {
-      process.stderr.write('💡 Tip: Use --verbose to see detailed memory recording logs\n')
+      process.stderr.write(
+        '💡 Tip: Use --verbose to see detailed memory recording logs\n'
+      )
     }
   }
 
@@ -97,13 +103,20 @@ export async function runYoloUI(args: Args) {
     type: config.provider || 'anthropic',
     baseUrl: config.baseUrl,
     apiKey: config.apiKey,
-    model: args.model || config.model
+    model: args.model || config.model,
   })
 
   initMemoryManager(process.cwd())
   let memoryMgr: ReturnType<typeof getMemoryManager> | undefined
-  try { memoryMgr = getMemoryManager() } catch { /* not initialized */ }
-  const systemPrompt = await new SystemPromptBuilder(process.cwd(), memoryMgr).build()
+  try {
+    memoryMgr = getMemoryManager()
+  } catch {
+    /* not initialized */
+  }
+  const systemPrompt = await new SystemPromptBuilder(
+    process.cwd(),
+    memoryMgr
+  ).build()
 
   await sessionManager.createSession('yolo', config.model)
 
@@ -115,7 +128,7 @@ export async function runYoloUI(args: Args) {
     streaming: true,
     systemPrompt,
     sessionManager,
-    hooks: hookManager
+    hooks: hookManager,
   })
 
   const onMessage = async function* (text: string) {
@@ -140,15 +153,11 @@ export async function runYoloUI(args: Args) {
         yield queue.shift()
       }
       if (done) break
-      await new Promise<void>(r => { resolve = r })
+      await new Promise<void>(r => {
+        resolve = r
+      })
     }
   }
 
-  render(
-    <App
-      model={config.model}
-      mode="yolo"
-      onMessage={onMessage}
-    />
-  )
+  render(<App model={config.model} mode="yolo" onMessage={onMessage} />)
 }

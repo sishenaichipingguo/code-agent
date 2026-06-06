@@ -48,7 +48,7 @@ export class CompletionEngine {
       beforeCursor,
       afterCursor: input.slice(cursor),
       currentWord,
-      isFilePath: currentWord.includes('/') || currentWord.includes('\\')
+      isFilePath: currentWord.includes('/') || currentWord.includes('\\'),
     }
   }
 }

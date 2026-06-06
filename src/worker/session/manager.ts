@@ -2,6 +2,12 @@ import type { ActiveSession, QueuedMessage } from '../types'
 import { SQLiteManager } from '../db/sqlite'
 import { SDKAgent } from '../agents/observer'
 import type { ChromaManager } from '../embedding/chroma'
+import { getLogger } from '../../infra/logger'
+
+// Narrow an unknown caught value to a human-readable message.
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
 
 export class SessionManager {
   private activeSessions = new Map<string, ActiveSession>()
@@ -29,7 +35,7 @@ export class SessionManager {
         contentSessionId: params.contentSessionId,
         project: params.project,
         platformSource: params.platformSource,
-        cwd: params.cwd
+        cwd: params.cwd,
       })
     }
 
@@ -41,7 +47,7 @@ export class SessionManager {
     this.db.createUserPrompt({
       sessionId: session.id,
       promptNumber,
-      content: params.prompt
+      content: params.prompt,
     })
 
     // 创建或获取 ActiveSession
@@ -53,7 +59,7 @@ export class SessionManager {
         project: params.project,
         cwd: params.cwd,
         messageQueue: [],
-        processing: false
+        processing: false,
       }
       this.activeSessions.set(params.contentSessionId, activeSession)
     }
@@ -62,12 +68,14 @@ export class SessionManager {
     activeSession.messageQueue.push({
       type: 'init',
       prompt: params.prompt,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     })
 
     // 异步处理队列
     this.processQueue(params.contentSessionId).catch(err => {
-      console.error('Queue processing error:', err)
+      getLogger().error('Queue processing error', {
+        error: err?.message ?? err,
+      })
     })
 
     return { sessionDbId: session.id, promptNumber }
@@ -76,8 +84,8 @@ export class SessionManager {
   async addObservation(params: {
     contentSessionId: string
     toolName: string
-    toolInput: any
-    toolResponse: any
+    toolInput: Record<string, unknown>
+    toolResponse: unknown
   }): Promise<{ observationId: number }> {
     const activeSession = this.activeSessions.get(params.contentSessionId)
     if (!activeSession) {
@@ -90,12 +98,14 @@ export class SessionManager {
       toolName: params.toolName,
       toolInput: params.toolInput,
       toolResponse: params.toolResponse,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     })
 
     // 异步处理队列
     this.processQueue(params.contentSessionId).catch(err => {
-      console.error('Queue processing error:', err)
+      getLogger().error('Queue processing error', {
+        error: err?.message ?? err,
+      })
     })
 
     // 返回临时 ID（实际 ID 在处理后生成）
@@ -115,12 +125,14 @@ export class SessionManager {
     activeSession.messageQueue.push({
       type: 'summary',
       lastAssistantMessage: params.lastAssistantMessage,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     })
 
     // 异步处理队列
     this.processQueue(params.contentSessionId).catch(err => {
-      console.error('Queue processing error:', err)
+      getLogger().error('Queue processing error', {
+        error: err?.message ?? err,
+      })
     })
 
     return { summaryId: -1 }
@@ -131,7 +143,10 @@ export class SessionManager {
     this.processingLock.delete(contentSessionId)
   }
 
-  getQueueStatus(contentSessionId: string): { queueLength: number; processing: boolean } {
+  getQueueStatus(contentSessionId: string): {
+    queueLength: number
+    processing: boolean
+  } {
     const activeSession = this.activeSessions.get(contentSessionId)
     if (!activeSession) {
       return { queueLength: 0, processing: false }
@@ -139,7 +154,7 @@ export class SessionManager {
 
     return {
       queueLength: activeSession.messageQueue.length,
-      processing: activeSession.processing
+      processing: activeSession.processing,
     }
   }
 
@@ -185,7 +200,7 @@ export class SessionManager {
       const response = await this.agent.processInit({
         userPrompt: message.prompt,
         project: session.project,
-        cwd: session.cwd
+        cwd: session.cwd,
       })
 
       const parsed = this.agent.parseObservation(response)
@@ -194,19 +209,27 @@ export class SessionManager {
           sessionId: session.sessionDbId,
           type: parsed.type,
           content: parsed.content,
-          metadata: { source: 'init', prompt: message.prompt, project: session.project }
+          metadata: {
+            source: 'init',
+            prompt: message.prompt,
+            project: session.project,
+          },
         })
 
         // 添加到 ChromaDB
         if (this.chroma) {
           await this.chroma.addObservation(observation).catch(err => {
-            console.error('Failed to add observation to ChromaDB:', err.message)
+            getLogger().error('Failed to add observation to ChromaDB', {
+              error: err?.message ?? err,
+            })
           })
         }
       }
-    } catch (error: any) {
+    } catch (error) {
       // Log error but don't throw - memory system should not block main flow
-      console.error('Init message processing error:', error.message || error)
+      getLogger().error('Init message processing error', {
+        error: errorMessage(error),
+      })
     }
   }
 
@@ -218,7 +241,7 @@ export class SessionManager {
       const response = await this.agent.processContinuation({
         toolName: message.toolName,
         toolInput: message.toolInput,
-        toolResponse: message.toolResponse
+        toolResponse: message.toolResponse,
       })
 
       const parsed = this.agent.parseObservation(response)
@@ -231,20 +254,24 @@ export class SessionManager {
             source: 'tool_call',
             toolName: message.toolName,
             toolInput: message.toolInput,
-            project: session.project
-          }
+            project: session.project,
+          },
         })
 
         // 添加到 ChromaDB
         if (this.chroma) {
           await this.chroma.addObservation(observation).catch(err => {
-            console.error('Failed to add observation to ChromaDB:', err.message)
+            getLogger().error('Failed to add observation to ChromaDB', {
+              error: err?.message ?? err,
+            })
           })
         }
       }
-    } catch (error: any) {
+    } catch (error) {
       // Log error but don't throw - memory system should not block main flow
-      console.error('Observation message processing error:', error.message || error)
+      getLogger().error('Observation message processing error', {
+        error: errorMessage(error),
+      })
     }
   }
 
@@ -254,19 +281,21 @@ export class SessionManager {
   ): Promise<void> {
     try {
       const response = await this.agent.processSummary({
-        lastAssistantMessage: message.lastAssistantMessage
+        lastAssistantMessage: message.lastAssistantMessage,
       })
 
       const parsed = this.agent.parseSummary(response)
       if (parsed) {
         this.db.createSummary({
           sessionId: session.sessionDbId,
-          content: parsed
+          content: parsed,
         })
       }
-    } catch (error: any) {
+    } catch (error) {
       // Log error but don't throw - memory system should not block main flow
-      console.error('Summary message processing error:', error.message || error)
+      getLogger().error('Summary message processing error', {
+        error: errorMessage(error),
+      })
     }
   }
 }

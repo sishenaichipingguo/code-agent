@@ -1,4 +1,4 @@
-import { describe, test, expect, mock } from 'bun:test'
+import { describe, test, expect } from 'bun:test'
 
 // Test the handleSubmit logic in isolation (extracted from App component)
 // These tests verify the state transition logic without rendering Ink components
@@ -17,16 +17,25 @@ interface Message {
 
 // Simulate the handleSubmit logic from App.tsx
 async function simulateHandleSubmit(
-  chunks: Array<{ type: string; name?: string; content?: string; error?: string; result?: string; duration?: number }>,
+  chunks: Array<{
+    type: string
+    name?: string
+    content?: string
+    error?: string
+    result?: string
+    duration?: number
+  }>,
   initialMessages: Message[] = [],
   initialToolEvents: ToolEvent[] = []
 ): Promise<{ messages: Message[]; toolEvents: ToolEvent[] }> {
   let messages = [...initialMessages]
-  let toolEvents = [...initialToolEvents]
   let assistantContent = ''
 
   // Simulate: clear toolEvents at start of new submission
-  toolEvents = []
+  let toolEvents: ToolEvent[] = []
+  // Note: initialToolEvents is intentionally ignored — a new submission
+  // starts with a cleared tool-event list (mirrors App.tsx behavior).
+  void initialToolEvents
   // Simulate: setMessages(prev => [...prev, { role: 'user', content: text }])
   messages = [...messages, { role: 'user', content: 'test input' }]
 
@@ -37,7 +46,12 @@ async function simulateHandleSubmit(
     if (chunk.type === 'tool_end') {
       toolEvents = toolEvents.map(e =>
         e.name === chunk.name && e.status === 'running'
-          ? { ...e, status: chunk.error ? 'error' : 'done', duration: chunk.duration, summary: (chunk.error ?? chunk.result!).slice(0, 60) }
+          ? {
+              ...e,
+              status: chunk.error ? 'error' : 'done',
+              duration: chunk.duration,
+              summary: (chunk.error ?? chunk.result!).slice(0, 60),
+            }
           : e
       )
     }
@@ -45,9 +59,15 @@ async function simulateHandleSubmit(
       assistantContent += chunk.content
       const last = messages[messages.length - 1]
       if (last?.role === 'assistant') {
-        messages = [...messages.slice(0, -1), { role: 'assistant', content: assistantContent }]
+        messages = [
+          ...messages.slice(0, -1),
+          { role: 'assistant', content: assistantContent },
+        ]
       } else {
-        messages = [...messages, { role: 'assistant', content: assistantContent }]
+        messages = [
+          ...messages,
+          { role: 'assistant', content: assistantContent },
+        ]
       }
     }
   }
@@ -59,7 +79,12 @@ describe('App handleSubmit logic', () => {
   test('tool events should persist after text chunks arrive', async () => {
     const chunks = [
       { type: 'tool_start', name: 'read_file' },
-      { type: 'tool_end', name: 'read_file', result: 'file contents', duration: 100 },
+      {
+        type: 'tool_end',
+        name: 'read_file',
+        result: 'file contents',
+        duration: 100,
+      },
       { type: 'text', content: 'Here is the result' },
     ]
 
@@ -74,7 +99,12 @@ describe('App handleSubmit logic', () => {
   test('tool events should not be cleared mid-stream when more text chunks arrive', async () => {
     const chunks = [
       { type: 'tool_start', name: 'read_file' },
-      { type: 'tool_end', name: 'read_file', result: 'file contents', duration: 100 },
+      {
+        type: 'tool_end',
+        name: 'read_file',
+        result: 'file contents',
+        duration: 100,
+      },
       { type: 'text', content: 'First chunk ' },
       { type: 'text', content: 'second chunk' },
     ]

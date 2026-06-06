@@ -1,7 +1,13 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
-import { createTestContext, runAgent, writeTestFile, readTestFile, fileExists, type TestContext } from './setup'
-
-const hasValidApiKey = !!process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY !== 'test-key'
+import {
+  createTestContext,
+  runAgent,
+  writeTestFile,
+  readTestFile,
+  fileExists,
+  type TestContext,
+  shouldRunE2E,
+} from './setup'
 
 describe('E2E: Basic Operations', () => {
   let ctx: TestContext
@@ -39,8 +45,10 @@ describe('E2E: File Operations (requires API key)', () => {
   let ctx: TestContext
 
   beforeEach(async () => {
-    if (!hasValidApiKey) {
-      console.log('⚠️  Skipping API-dependent tests (no valid ANTHROPIC_API_KEY)')
+    if (!shouldRunE2E) {
+      console.log(
+        '⚠️  Skipping E2E API tests (set RUN_E2E=1 and a real ANTHROPIC_API_KEY to run)'
+      )
     }
     ctx = await createTestContext()
   })
@@ -49,19 +57,19 @@ describe('E2E: File Operations (requires API key)', () => {
     await ctx.cleanup()
   })
 
-  test.skipIf(!hasValidApiKey)('should read existing file', async () => {
+  test.skipIf(!shouldRunE2E)('should read existing file', async () => {
     await writeTestFile(ctx.workDir, 'test.txt', 'Hello World')
 
-    const result = await runAgent(
-      ['Read test.txt'],
-      { cwd: ctx.workDir, timeout: 10000 }
-    )
+    const result = await runAgent(['Read test.txt'], {
+      cwd: ctx.workDir,
+      timeout: 10000,
+    })
 
     expect(result.stdout).toContain('Hello World')
   })
 
-  test.skipIf(!hasValidApiKey)('should create new file', async () => {
-    const result = await runAgent(
+  test.skipIf(!shouldRunE2E)('should create new file', async () => {
+    await runAgent(
       ['Create a file named output.txt with content "Test Output"'],
       { cwd: ctx.workDir, timeout: 150000 }
     )
@@ -73,13 +81,13 @@ describe('E2E: File Operations (requires API key)', () => {
     expect(content).toContain('Test Output')
   })
 
-  test.skipIf(!hasValidApiKey)('should edit existing file', async () => {
+  test.skipIf(!shouldRunE2E)('should edit existing file', async () => {
     await writeTestFile(ctx.workDir, 'edit-test.txt', 'Original Content')
 
-    const result = await runAgent(
-      ['Change "Original" to "Modified" in edit-test.txt'],
-      { cwd: ctx.workDir, timeout: 150000 }
-    )
+    await runAgent(['Change "Original" to "Modified" in edit-test.txt'], {
+      cwd: ctx.workDir,
+      timeout: 150000,
+    })
 
     const content = await readTestFile(ctx.workDir, 'edit-test.txt')
     expect(content).toContain('Modified Content')
@@ -91,12 +99,22 @@ describe('E2E: Search Operations (requires API key)', () => {
   let ctx: TestContext
 
   beforeEach(async () => {
-    if (!hasValidApiKey) {
-      console.log('⚠️  Skipping API-dependent tests (no valid ANTHROPIC_API_KEY)')
+    if (!shouldRunE2E) {
+      console.log(
+        '⚠️  Skipping E2E API tests (set RUN_E2E=1 and a real ANTHROPIC_API_KEY to run)'
+      )
     }
     ctx = await createTestContext()
-    await writeTestFile(ctx.workDir, 'file1.js', 'function hello() { return "world" }')
-    await writeTestFile(ctx.workDir, 'file2.js', 'function goodbye() { return "world" }')
+    await writeTestFile(
+      ctx.workDir,
+      'file1.js',
+      'function hello() { return "world" }'
+    )
+    await writeTestFile(
+      ctx.workDir,
+      'file2.js',
+      'function goodbye() { return "world" }'
+    )
     await writeTestFile(ctx.workDir, 'file3.txt', 'Some text content')
   })
 
@@ -104,22 +122,22 @@ describe('E2E: Search Operations (requires API key)', () => {
     await ctx.cleanup()
   })
 
-  test.skipIf(!hasValidApiKey)('should find files by pattern', async () => {
-    const result = await runAgent(
-      ['Find all .js files'],
-      { cwd: ctx.workDir, timeout: 10000 }
-    )
+  test.skipIf(!shouldRunE2E)('should find files by pattern', async () => {
+    const result = await runAgent(['Find all .js files'], {
+      cwd: ctx.workDir,
+      timeout: 10000,
+    })
 
     expect(result.stdout).toContain('file1.js')
     expect(result.stdout).toContain('file2.js')
     expect(result.stdout).not.toContain('file3.txt')
   })
 
-  test.skipIf(!hasValidApiKey)('should search file content', async () => {
-    const result = await runAgent(
-      ['Search for "hello" in all files'],
-      { cwd: ctx.workDir, timeout: 10000 }
-    )
+  test.skipIf(!shouldRunE2E)('should search file content', async () => {
+    const result = await runAgent(['Search for "hello" in all files'], {
+      cwd: ctx.workDir,
+      timeout: 10000,
+    })
 
     expect(result.stdout).toContain('file1.js')
     expect(result.stdout).toContain('hello')

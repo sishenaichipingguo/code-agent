@@ -4,16 +4,20 @@ import { ToolRegistry, createTool } from '@/core/tools/registry'
 import { initLogger } from '@/infra/logger'
 import { loadConfig } from '@/core/config/loader'
 
-function makeRegistry(tools: Array<{ name: string; result: any }> = []): ToolRegistry {
+function makeRegistry(
+  tools: Array<{ name: string; result: any }> = []
+): ToolRegistry {
   const registry = new ToolRegistry()
   for (const { name, result } of tools) {
-    registry.register(createTool({
-      name,
-      description: `${name} tool`,
-      inputSchema: { type: 'object', properties: {} },
-      execute: async () => result,
-      checkPermissions: () => ({ type: 'allow' })
-    }))
+    registry.register(
+      createTool({
+        name,
+        description: `${name} tool`,
+        inputSchema: { type: 'object', properties: {} },
+        execute: async () => result,
+        checkPermissions: () => ({ type: 'allow' }),
+      })
+    )
   }
   return registry
 }
@@ -27,7 +31,7 @@ describe('buildListToolsHandler', () => {
   it('returns all tools with camelCase inputSchema', async () => {
     const registry = makeRegistry([
       { name: 'read', result: '' },
-      { name: 'grep', result: '' }
+      { name: 'grep', result: '' },
     ])
     const handler = buildListToolsHandler(registry)
     const result = await handler({})
@@ -70,13 +74,17 @@ describe('buildCallToolHandler', () => {
 
   it('returns isError: true when tool execution throws', async () => {
     const registry = new ToolRegistry()
-    registry.register(createTool({
-      name: 'broken',
-      description: 'broken tool',
-      inputSchema: {},
-      execute: async () => { throw new Error('tool crashed') },
-      checkPermissions: () => ({ type: 'allow' })
-    }))
+    registry.register(
+      createTool({
+        name: 'broken',
+        description: 'broken tool',
+        inputSchema: {},
+        execute: async () => {
+          throw new Error('tool crashed')
+        },
+        checkPermissions: () => ({ type: 'allow' }),
+      })
+    )
     const handler = buildCallToolHandler(registry)
     const result = await handler({ params: { name: 'broken', arguments: {} } })
     expect(result.isError).toBe(true)

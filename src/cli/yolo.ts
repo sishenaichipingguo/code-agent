@@ -1,5 +1,5 @@
 import type { Args } from './parser'
-import { initLogger, getLogger } from '@/infra/logger'
+import { initLogger } from '@/infra/logger'
 import { SlashCommandRegistry } from '@/core/slash/registry'
 import { SkillLoader } from '@/core/slash/skill-loader'
 import { PluginManager } from '@/core/plugins/manager'
@@ -14,8 +14,8 @@ import { makeSkillsHandler } from '@/core/slash/builtins/skills'
 import { makePluginsHandler } from '@/core/slash/builtins/plugins'
 import os from 'os'
 import { join } from 'path'
-import { initTokenTracker, getTokenTracker } from '@/infra/token-tracker'
-import { initMetrics, getMetrics } from '@/infra/metrics'
+import { initTokenTracker } from '@/infra/token-tracker'
+import { initMetrics } from '@/infra/metrics'
 import { GracefulShutdown } from '@/infra/graceful-shutdown'
 import { loadConfig } from '@/core/config/loader'
 import { AgentLoop } from '@/core/agent/loop'
@@ -25,7 +25,12 @@ import { SessionManager } from '@/core/session/manager'
 import { initAgentDispatcher } from '@/core/tools/agent'
 import { ContextManager } from '@/core/context/manager'
 import { SystemPromptBuilder } from '@/core/system-prompt/builder'
-import { initMemoryManager, getMemoryManager, initTeamStore, getTeamStore } from '@/core/tools/memory'
+import {
+  initMemoryManager,
+  getMemoryManager,
+  initTeamStore,
+  getTeamStore,
+} from '@/core/tools/memory'
 import { buildPermissionContext } from '@/core/permissions'
 import { SessionStore } from '@/core/memory/session-store'
 import { createHookManager } from '@/core/hooks/manager'
@@ -51,7 +56,9 @@ export async function runYolo(args: Args) {
     const apiKey = process.env.ANTHROPIC_API_KEY || config.apiKey
     if (!apiKey) {
       process.stderr.write('⚠️  Memory system requires ANTHROPIC_API_KEY\n')
-      process.stderr.write('   Set it with: export ANTHROPIC_API_KEY="your-key"\n')
+      process.stderr.write(
+        '   Set it with: export ANTHROPIC_API_KEY="your-key"\n'
+      )
       process.stderr.write('   Continuing without memory...\n')
     } else {
       try {
@@ -59,7 +66,7 @@ export async function runYolo(args: Args) {
         workerManager = new WorkerManager({
           apiKey,
           verbose: args.verbose,
-          dataDir: join(os.homedir(), '.claude-mem')
+          dataDir: join(os.homedir(), '.claude-mem'),
         })
         await workerManager.start()
 
@@ -71,7 +78,9 @@ export async function runYolo(args: Args) {
 
         logger.info('Memory system started', { port: workerManager.getPort() })
       } catch (error: any) {
-        process.stderr.write(`⚠️  Failed to start memory system: ${error.message}\n`)
+        process.stderr.write(
+          `⚠️  Failed to start memory system: ${error.message}\n`
+        )
         process.stderr.write('   Continuing without memory...\n')
         workerManager = undefined
       }
@@ -114,7 +123,9 @@ export async function runYolo(args: Args) {
 
     // Show tip for non-verbose mode
     if (!args.verbose) {
-      process.stderr.write('💡 Tip: Use --verbose to see detailed memory recording logs\n')
+      process.stderr.write(
+        '💡 Tip: Use --verbose to see detailed memory recording logs\n'
+      )
     }
   }
 
@@ -130,7 +141,7 @@ export async function runYolo(args: Args) {
     type: config.provider || 'anthropic',
     baseUrl: config.baseUrl,
     apiKey: config.apiKey,
-    model: args.model || config.model
+    model: args.model || config.model,
   })
 
   // Initialize memory manager so memory tools work and MEMORY.md can be injected
@@ -138,7 +149,11 @@ export async function runYolo(args: Args) {
   let teamStoreMgr: TeamStore | undefined
   if (config.memory?.teamDir) {
     initTeamStore(config.memory.teamDir)
-    try { teamStoreMgr = getTeamStore() } catch { /* teamDir not configured */ }
+    try {
+      teamStoreMgr = getTeamStore()
+    } catch {
+      /* teamDir not configured */
+    }
   }
   const sessionStore = new SessionStore(process.cwd(), model)
 
@@ -147,7 +162,7 @@ export async function runYolo(args: Args) {
     provider: config.provider ?? 'anthropic',
     model: args.model || config.model,
     apiKey: config.apiKey,
-    baseUrl: config.baseUrl
+    baseUrl: config.baseUrl,
   })
 
   logger.info('Using provider', { provider: model.name, model: config.model })
@@ -163,9 +178,17 @@ export async function runYolo(args: Args) {
 
     if (existing) {
       // Strip timestamp — loop only needs role + content
-      initialMessages = existing.messages.map(({ role, content }) => ({ role, content }))
-      process.stderr.write(`↩ Resuming session ${existing.id} (${initialMessages.length} messages)\n`)
-      logger.info('Resuming session', { id: existing.id, messages: initialMessages.length })
+      initialMessages = existing.messages.map(({ role, content }) => ({
+        role,
+        content,
+      }))
+      process.stderr.write(
+        `↩ Resuming session ${existing.id} (${initialMessages.length} messages)\n`
+      )
+      logger.info('Resuming session', {
+        id: existing.id,
+        messages: initialMessages.length,
+      })
     } else {
       process.stderr.write('⚠ No session found, starting fresh\n')
     }
@@ -176,32 +199,46 @@ export async function runYolo(args: Args) {
 
   // Build full system prompt: role rules + env info + MEMORY.md + CLAUDE.md
   let memoryMgr: ReturnType<typeof getMemoryManager> | undefined
-  try { memoryMgr = getMemoryManager() } catch { /* not initialized */ }
+  try {
+    memoryMgr = getMemoryManager()
+  } catch {
+    /* not initialized */
+  }
   let autoExtractor: AutoExtractor | undefined
   if (memoryMgr) autoExtractor = new AutoExtractor(memoryMgr, model)
-  const systemPrompt = await new SystemPromptBuilder(process.cwd(), memoryMgr, sessionStore, teamStoreMgr).build()
+  const systemPrompt = await new SystemPromptBuilder(
+    process.cwd(),
+    memoryMgr,
+    sessionStore,
+    teamStoreMgr
+  ).build()
   logger.debug('System prompt built', { length: systemPrompt.length })
 
   // Create memory recall function if worker is available
-  let memoryRecallFn: ((query: string, project?: string) => Promise<string>) | undefined
+  let memoryRecallFn:
+    | ((query: string, project?: string) => Promise<string>)
+    | undefined
   if (workerManager) {
     memoryRecallFn = async (query: string, project?: string) => {
       try {
-        const response = await fetch(`http://localhost:${workerManager.getPort()}/api/recall`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            query,
-            project: project || config.project || 'code-agent',
-            limit: 10
-          })
-        })
+        const response = await fetch(
+          `http://localhost:${workerManager.getPort()}/api/recall`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query,
+              project: project || config.project || 'code-agent',
+              limit: 10,
+            }),
+          }
+        )
 
         if (!response.ok) {
           throw new Error(`Recall API failed: ${response.statusText}`)
         }
 
-        const data = await response.json() as { formattedText?: string }
+        const data = (await response.json()) as { formattedText?: string }
         return data.formattedText || ''
       } catch (error: any) {
         logger.warn('Memory recall failed', { error: error.message })
@@ -221,7 +258,7 @@ export async function runYolo(args: Args) {
     initialMessages,
     sessionManager,
     hooks: hookManager,
-    memoryRecallFn
+    memoryRecallFn,
   })
 
   tools.hooks = hookManager
@@ -232,7 +269,7 @@ export async function runYolo(args: Args) {
   // Discover plugins (project-level then user-level, user has higher priority)
   const pluginManager = new PluginManager([
     join(process.cwd(), '.agent', 'plugins'),
-    join(os.homedir(), '.agent', 'plugins')
+    join(os.homedir(), '.agent', 'plugins'),
   ])
   await pluginManager.discover()
 
@@ -240,20 +277,92 @@ export async function runYolo(args: Args) {
   const skillLoader = new SkillLoader([
     join(os.homedir(), '.agent', 'skills'),
     join(process.cwd(), '.agent', 'skills'),
-    ...pluginManager.getSkillDirs()
+    ...pluginManager.getSkillDirs(),
   ])
   await skillLoader.loadInto(registry)
 
   // Register built-in commands (priority -1 so skills can override)
-  registry.register({ name: 'compact', description: 'Compress conversation context', args: 'none', handler: compactHandler }, -1)
-  registry.register({ name: 'cost', description: 'Show token usage and cost', args: 'none', handler: costHandler }, -1)
-  registry.register({ name: 'clear', description: 'Clear conversation history', args: 'none', handler: clearHandler }, -1)
-  registry.register({ name: 'model', description: 'Show current model', args: 'optional', handler: modelHandler }, -1)
-  registry.register({ name: 'session', description: 'Show current session info', args: 'none', handler: sessionHandler }, -1)
-  registry.register({ name: 'memory', description: 'Show memory index', args: 'none', handler: memoryHandler }, -1)
-  registry.register({ name: 'skills', description: 'List loaded skill commands', args: 'none', handler: makeSkillsHandler(registry) }, -1)
-  registry.register({ name: 'plugins', description: 'List loaded plugins', args: 'none', handler: makePluginsHandler(pluginManager) }, -1)
-  registry.register({ name: 'help', description: 'List all available commands', args: 'none', handler: makeHelpHandler(registry) }, -1)
+  registry.register(
+    {
+      name: 'compact',
+      description: 'Compress conversation context',
+      args: 'none',
+      handler: compactHandler,
+    },
+    -1
+  )
+  registry.register(
+    {
+      name: 'cost',
+      description: 'Show token usage and cost',
+      args: 'none',
+      handler: costHandler,
+    },
+    -1
+  )
+  registry.register(
+    {
+      name: 'clear',
+      description: 'Clear conversation history',
+      args: 'none',
+      handler: clearHandler,
+    },
+    -1
+  )
+  registry.register(
+    {
+      name: 'model',
+      description: 'Show current model',
+      args: 'optional',
+      handler: modelHandler,
+    },
+    -1
+  )
+  registry.register(
+    {
+      name: 'session',
+      description: 'Show current session info',
+      args: 'none',
+      handler: sessionHandler,
+    },
+    -1
+  )
+  registry.register(
+    {
+      name: 'memory',
+      description: 'Show memory index',
+      args: 'none',
+      handler: memoryHandler,
+    },
+    -1
+  )
+  registry.register(
+    {
+      name: 'skills',
+      description: 'List loaded skill commands',
+      args: 'none',
+      handler: makeSkillsHandler(registry),
+    },
+    -1
+  )
+  registry.register(
+    {
+      name: 'plugins',
+      description: 'List loaded plugins',
+      args: 'none',
+      handler: makePluginsHandler(pluginManager),
+    },
+    -1
+  )
+  registry.register(
+    {
+      name: 'help',
+      description: 'List all available commands',
+      args: 'none',
+      handler: makeHelpHandler(registry),
+    },
+    -1
+  )
 
   shutdown.onShutdown(async () => {
     const msgs = loop.getMessages()
@@ -266,7 +375,8 @@ export async function runYolo(args: Args) {
   shutdown.onShutdown(async () => {
     if (!autoExtractor) return
     const msgs = loop.getMessages()
-    const shouldExtract = config.memory?.autoExtract !== false &&
+    const shouldExtract =
+      config.memory?.autoExtract !== false &&
       msgs.length >= (config.memory?.extractThreshold ?? 6)
     if (shouldExtract) {
       process.stderr.write('🧠 Extracting memories from session...\n')
@@ -274,8 +384,14 @@ export async function runYolo(args: Args) {
     }
   })
 
-  const rawMessage = args.message || await promptUser()
-  const cmdCtx = { args: '', loop, config, tokenTracker: tracker, sessionManager }
+  const rawMessage = args.message || (await promptUser())
+  const cmdCtx = {
+    args: '',
+    loop,
+    config,
+    tokenTracker: tracker,
+    sessionManager,
+  }
   const dispatchResult = await registry.dispatch(rawMessage, cmdCtx)
 
   if (dispatchResult.type === 'inject') {
@@ -293,7 +409,10 @@ export async function runYolo(args: Args) {
 
 async function promptUser(): Promise<string> {
   const readline = await import('readline')
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  })
   return new Promise(resolve => {
     rl.question('Enter your request: ', answer => {
       rl.close()

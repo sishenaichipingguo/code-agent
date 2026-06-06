@@ -1,8 +1,6 @@
 // src/core/permissions/types.test.ts
 import { describe, it, expect } from 'bun:test'
-import type {
-  PermissionResult, PermissionMatcher, AllowRule, PermissionContext
-} from './types'
+import type { PermissionResult, PermissionContext } from './types'
 
 describe('permission types', () => {
   it('PermissionResult allow is assignable', () => {
@@ -26,7 +24,7 @@ describe('permission types', () => {
     const ctx: PermissionContext = {
       mode: 'default',
       allowRules: [],
-      strippedRules: []
+      strippedRules: [],
     }
     expect(ctx.mode).toBe('default')
     expect(Array.isArray(ctx.allowRules)).toBe(true)

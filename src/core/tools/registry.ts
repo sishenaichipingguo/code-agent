@@ -1,25 +1,38 @@
 // Tool registry and execution
-import type { PermissionCapable, PermissionContext, PermissionResult, PermissionMatcher } from '@/core/permissions'
+import type {
+  PermissionCapable,
+  PermissionContext,
+  PermissionResult,
+  PermissionMatcher,
+} from '@/core/permissions'
 import { decide } from '@/core/permissions'
 import type { HookManager } from '@/core/hooks/manager'
 
 export interface Tool extends PermissionCapable {
   name: string
   description: string
-  inputSchema: any
-  execute(input: any): Promise<any>
+  inputSchema: unknown
+  // `any` here is deliberate: tools have heterogeneous input shapes and rely on
+  // method-parameter bivariance so each concrete tool can declare its own typed
+  // input. Using `unknown` would break every tool via contravariance.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  execute(input: any): Promise<unknown>
 }
 
 /** Factory that fills in safe defaults for permission methods. */
-export function createTool(spec: {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function createTool<TInput = any>(spec: {
   name: string
   description: string
-  inputSchema: any
-  execute(input: any): Promise<any>
+  inputSchema: unknown
+  execute(input: TInput): Promise<unknown>
   isConcurrencySafe?: (input: unknown) => boolean
   isReadOnly?: (input: unknown) => boolean
   isDestructive?: (input: unknown) => boolean
-  checkPermissions?: (input: unknown, ctx: PermissionContext) => PermissionResult
+  checkPermissions?: (
+    input: unknown,
+    ctx: PermissionContext
+  ) => PermissionResult
   preparePermissionMatcher?: (input: unknown) => PermissionMatcher | null
 }): Tool {
   return {
@@ -30,7 +43,9 @@ export function createTool(spec: {
     isConcurrencySafe: spec.isConcurrencySafe ?? (() => false),
     isReadOnly: spec.isReadOnly ?? (() => false),
     isDestructive: spec.isDestructive ?? (() => false),
-    checkPermissions: spec.checkPermissions ?? (() => ({ type: 'ask', description: `Allow ${spec.name}?` })),
+    checkPermissions:
+      spec.checkPermissions ??
+      (() => ({ type: 'ask', description: `Allow ${spec.name}?` })),
     preparePermissionMatcher: spec.preparePermissionMatcher ?? (() => null),
   }
 }
@@ -47,24 +62,38 @@ export class ToolRegistry {
     return this.tools.get(name)
   }
 
-  async execute(name: string, input: any, ctx: PermissionContext): Promise<any> {
+  async execute(
+    name: string,
+    input: unknown,
+    ctx: PermissionContext
+  ): Promise<unknown> {
     const { AgentError, ErrorCode } = await import('@/infra/errors')
 
     const tool = this.tools.get(name)
     if (!tool) {
-      throw new AgentError(ErrorCode.TOOL_NOT_FOUND, `Tool not found: ${name}`, { tool: name })
+      throw new AgentError(
+        ErrorCode.TOOL_NOT_FOUND,
+        `Tool not found: ${name}`,
+        { tool: name }
+      )
     }
 
     const decision = decide(tool, input, ctx, name)
 
     if (decision.type === 'deny') {
-      throw new AgentError(ErrorCode.PERMISSION_DENIED, decision.reason, { tool: name })
+      throw new AgentError(ErrorCode.PERMISSION_DENIED, decision.reason, {
+        tool: name,
+      })
     }
 
     if (decision.type === 'ask') {
       const confirmed = await this.promptUser(name, decision.description, input)
       if (!confirmed) {
-        throw new AgentError(ErrorCode.PERMISSION_DENIED, 'User denied permission', { tool: name })
+        throw new AgentError(
+          ErrorCode.PERMISSION_DENIED,
+          'User denied permission',
+          { tool: name }
+        )
       }
     }
 
@@ -75,17 +104,24 @@ export class ToolRegistry {
     const logger = getLogger()
     const config = getConfig()
     const toolConfig = config.tools?.[name as keyof typeof config.tools]
-    const timeout = (toolConfig && 'timeout' in toolConfig ? toolConfig.timeout : undefined) || 30000
+    const timeout =
+      (toolConfig && 'timeout' in toolConfig
+        ? toolConfig.timeout
+        : undefined) || 30000
 
     const hookEnv: Record<string, string> = {
       AGENT_TOOL_NAME: name,
-      AGENT_TOOL_INPUT: JSON.stringify(input)
+      AGENT_TOOL_INPUT: JSON.stringify(input),
     }
 
     // pre-tool: runs before try — if hook aborts, error propagates directly (not wrapped as TOOL_EXECUTION_FAILED)
     let effectiveInput = input
     if (this.hooks) {
-      const transformed = await this.hooks.transform('pre-tool', { name, input }, hookEnv)
+      const transformed = await this.hooks.transform(
+        'pre-tool',
+        { name, input },
+        hookEnv
+      )
       effectiveInput = transformed.input
     }
 
@@ -95,32 +131,49 @@ export class ToolRegistry {
       const result = await executeWithTimeout(
         tool.execute(effectiveInput),
         timeout,
-        new AgentError(ErrorCode.TIMEOUT, `Tool "${name}" timed out after ${timeout}ms`)
+        new AgentError(
+          ErrorCode.TIMEOUT,
+          `Tool "${name}" timed out after ${timeout}ms`
+        )
       )
       logger.info('Tool execution completed', { tool: name })
 
       // post-tool: notify — awaited sequentially, result already computed
       await this.hooks?.fire('post-tool', {
         ...hookEnv,
-        AGENT_TOOL_RESULT: typeof result === 'string' ? result : JSON.stringify(result)
+        AGENT_TOOL_RESULT:
+          typeof result === 'string' ? result : JSON.stringify(result),
       })
 
       return result
-    } catch (error: any) {
-      logger.error('Tool execution failed', { tool: name, error: error.message })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      logger.error('Tool execution failed', {
+        tool: name,
+        error: message,
+      })
       if (error instanceof AgentError) throw error
       throw new AgentError(
         ErrorCode.TOOL_EXECUTION_FAILED,
-        error.message, { tool: name, input }, false
+        message,
+        { tool: name, input },
+        false
       )
     }
   }
 
-  private async promptUser(toolName: string, description: string, input: any): Promise<boolean> {
+  private async promptUser(
+    toolName: string,
+    description: string,
+    _input: unknown
+  ): Promise<boolean> {
     process.stderr.write(`\n⚠️  Permission required: ${toolName}\n`)
     process.stderr.write(`   ${description}\n`)
     const readline = await import('readline')
-    const rl = readline.createInterface({ input: process.stdin, output: process.stderr })
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stderr,
+    })
     return new Promise(resolve => {
       rl.question('Allow? (y/n) ', answer => {
         rl.close()
@@ -129,11 +182,15 @@ export class ToolRegistry {
     })
   }
 
-  toSchema(): any[] {
+  toSchema(): Array<{
+    name: string
+    description: string
+    input_schema: unknown
+  }> {
     return Array.from(this.tools.values()).map(t => ({
       name: t.name,
       description: t.description,
-      input_schema: t.inputSchema
+      input_schema: t.inputSchema,
     }))
   }
 
@@ -162,8 +219,15 @@ export async function createToolRegistry(): Promise<ToolRegistry> {
   const { CpTool } = await import('./cp')
   const { MvTool } = await import('./mv')
   const { RmTool } = await import('./rm')
-  const { TaskCreateTool, TaskUpdateTool, TaskListTool, TaskGetTool } = await import('./task')
-  const { MemorySaveTool, MemoryLoadTool, MemoryUpdateTool, MemoryDeleteTool, MemoryTeamSaveTool } = await import('./memory')
+  const { TaskCreateTool, TaskUpdateTool, TaskListTool, TaskGetTool } =
+    await import('./task')
+  const {
+    MemorySaveTool,
+    MemoryLoadTool,
+    MemoryUpdateTool,
+    MemoryDeleteTool,
+    MemoryTeamSaveTool,
+  } = await import('./memory')
   const { EnterPlanModeTool, ExitPlanModeTool } = await import('./plan')
   const { AgentTool, SendMessageTool } = await import('./agent')
 

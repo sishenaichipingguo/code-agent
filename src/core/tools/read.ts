@@ -9,14 +9,18 @@ export const ReadTool = createTool({
     properties: {
       path: { type: 'string', description: 'File path' },
       offset: { type: 'number', description: 'Start line (0-indexed)' },
-      limit: { type: 'number', description: 'Max lines to read' }
+      limit: { type: 'number', description: 'Max lines to read' },
     },
-    required: ['path']
+    required: ['path'],
   },
   isConcurrencySafe: () => true,
   isReadOnly: () => true,
   checkPermissions: () => ({ type: 'allow' as const }),
-  async execute(input: { path: string; offset?: number; limit?: number }): Promise<string> {
+  async execute(input: {
+    path: string
+    offset?: number
+    limit?: number
+  }): Promise<string> {
     try {
       const content = await readFile(input.path, 'utf-8')
       const lines = content.split('\n')
@@ -25,13 +29,14 @@ export const ReadTool = createTool({
       const end = input.limit ? start + input.limit : lines.length
       const selectedLines = lines.slice(start, end)
 
-      const numbered = selectedLines.map((line, i) =>
-        `${String(start + i + 1).padStart(5)}→${line}`
-      ).join('\n')
+      const numbered = selectedLines
+        .map((line, i) => `${String(start + i + 1).padStart(5)}→${line}`)
+        .join('\n')
 
       return numbered
-    } catch (error: any) {
-      throw new Error(`Failed to read file: ${error.message}`)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      throw new Error(`Failed to read file: ${message}`, { cause: error })
     }
-  }
+  },
 })

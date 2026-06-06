@@ -56,7 +56,7 @@ export async function runSafe(args: Args) {
     type: config.provider || 'anthropic',
     baseUrl: config.baseUrl,
     apiKey: config.apiKey,
-    model: args.model || config.model
+    model: args.model || config.model,
   })
 
   // Create session
@@ -68,12 +68,12 @@ export async function runSafe(args: Args) {
     permissionContext: buildPermissionContext('default'),
     logger,
     streaming: true,
-    hooks: hookManager
+    hooks: hookManager,
   })
 
   tools.hooks = hookManager
 
-  const message = args.message || await promptUser()
+  const message = args.message || (await promptUser())
   await loop.run(message)
 
   // Save session

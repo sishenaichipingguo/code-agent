@@ -10,6 +10,6 @@ export async function executeWithTimeout<T>(
         () => reject(timeoutError || new Error(`Timeout after ${timeoutMs}ms`)),
         timeoutMs
       )
-    )
+    ),
   ])
 }

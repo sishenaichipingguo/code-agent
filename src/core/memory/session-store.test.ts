@@ -17,7 +17,10 @@ afterEach(() => {
 const mockModel = {
   name: 'claude-sonnet-4-6',
   capabilities: { tools: false, streaming: false, vision: false },
-  chat: mock(async () => ({ type: 'text' as const, content: 'Session dealt with TypeScript refactoring.' }))
+  chat: mock(async () => ({
+    type: 'text' as const,
+    content: 'Session dealt with TypeScript refactoring.',
+  })),
 }
 
 describe('SessionStore', () => {
@@ -25,10 +28,12 @@ describe('SessionStore', () => {
     const store = new SessionStore(tmpDir, mockModel as any)
     const messages = [
       { role: 'user' as const, content: 'Refactor this module' },
-      { role: 'assistant' as const, content: 'Done.' }
+      { role: 'assistant' as const, content: 'Done.' },
     ]
     await store.save(messages)
-    expect(existsSync(join(tmpDir, '.claude', 'memory', 'session_summary.md'))).toBe(true)
+    expect(
+      existsSync(join(tmpDir, '.claude', 'memory', 'session_summary.md'))
+    ).toBe(true)
   })
 
   it('load() returns empty string when no summary exists', () => {
@@ -38,7 +43,10 @@ describe('SessionStore', () => {
 
   it('load() returns summary content after save()', async () => {
     const store = new SessionStore(tmpDir, mockModel as any)
-    await store.save([{ role: 'user', content: 'hi' }, { role: 'assistant', content: 'hello' }])
+    await store.save([
+      { role: 'user', content: 'hi' },
+      { role: 'assistant', content: 'hello' },
+    ])
     const content = store.load()
     expect(content).toContain('Session dealt with')
   })
@@ -46,6 +54,8 @@ describe('SessionStore', () => {
   it('save() is a no-op when fewer than 2 messages', async () => {
     const store = new SessionStore(tmpDir, mockModel as any)
     await store.save([{ role: 'user', content: 'hi' }])
-    expect(existsSync(join(tmpDir, '.claude', 'memory', 'session_summary.md'))).toBe(false)
+    expect(
+      existsSync(join(tmpDir, '.claude', 'memory', 'session_summary.md'))
+    ).toBe(false)
   })
 })

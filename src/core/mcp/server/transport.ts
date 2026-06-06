@@ -2,15 +2,20 @@
 // Uses dynamic imports to keep startup fast.
 
 export async function connectStdioServerTransport(server: any): Promise<void> {
-  const { StdioServerTransport } = await import('@modelcontextprotocol/sdk/server/stdio.js')
+  const { StdioServerTransport } =
+    await import('@modelcontextprotocol/sdk/server/stdio.js')
   const transport = new StdioServerTransport()
   await server.connect(transport)
   process.stderr.write('MCP server running on stdio\n')
   // process stays alive because stdin is open
 }
 
-export async function connectHttpServerTransport(server: any, port: number): Promise<void> {
-  const { SSEServerTransport } = await import('@modelcontextprotocol/sdk/server/sse.js')
+export async function connectHttpServerTransport(
+  server: any,
+  port: number
+): Promise<void> {
+  const { SSEServerTransport } =
+    await import('@modelcontextprotocol/sdk/server/sse.js')
   const { createServer } = await import('node:http')
 
   const transports = new Map<string, any>()
@@ -37,7 +42,9 @@ export async function connectHttpServerTransport(server: any, port: number): Pro
 
   await new Promise<void>((resolve, reject) => {
     httpServer.listen(port, () => {
-      process.stderr.write(`MCP server running on http://localhost:${port}/sse\n`)
+      process.stderr.write(
+        `MCP server running on http://localhost:${port}/sse\n`
+      )
       resolve()
     })
     httpServer.on('error', reject)

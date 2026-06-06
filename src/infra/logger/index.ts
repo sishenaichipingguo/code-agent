@@ -6,14 +6,14 @@ export interface LogEntry {
   level: LogLevel
   timestamp: number
   message: string
-  meta?: Record<string, any>
+  meta?: Record<string, unknown>
 }
 
 export interface Logger {
-  debug(msg: string, meta?: Record<string, any>): void
-  info(msg: string, meta?: Record<string, any>): void
-  warn(msg: string, meta?: Record<string, any>): void
-  error(msg: string, meta?: Record<string, any>): void
+  debug(msg: string, meta?: Record<string, unknown>): void
+  info(msg: string, meta?: Record<string, unknown>): void
+  warn(msg: string, meta?: Record<string, unknown>): void
+  error(msg: string, meta?: Record<string, unknown>): void
 }
 
 class FastLogger implements Logger {
@@ -24,28 +24,32 @@ class FastLogger implements Logger {
     this.mode = mode
   }
 
-  debug(msg: string, meta?: Record<string, any>) {
+  debug(msg: string, meta?: Record<string, unknown>) {
     this.log('debug', msg, meta)
   }
 
-  info(msg: string, meta?: Record<string, any>) {
+  info(msg: string, meta?: Record<string, unknown>) {
     this.log('info', msg, meta)
   }
 
-  warn(msg: string, meta?: Record<string, any>) {
+  warn(msg: string, meta?: Record<string, unknown>) {
     this.log('warn', msg, meta)
   }
 
-  error(msg: string, meta?: Record<string, any>) {
+  error(msg: string, meta?: Record<string, unknown>) {
     this.log('error', msg, meta)
   }
 
-  private log(level: LogLevel, message: string, meta?: Record<string, any>) {
+  private log(
+    level: LogLevel,
+    message: string,
+    meta?: Record<string, unknown>
+  ) {
     const entry: LogEntry = {
       level,
       timestamp: Date.now(),
       message,
-      meta
+      meta,
     }
 
     // YOLO mode: only buffer errors

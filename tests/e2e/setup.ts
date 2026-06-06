@@ -8,6 +8,18 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 const PROJECT_ROOT = join(__dirname, '../..')
 
+/**
+ * E2E tests make live LLM calls (slow + costs money), so they are opt-in.
+ * They only run when BOTH conditions hold:
+ *   1. RUN_E2E is set to a truthy value (explicit opt-in)
+ *   2. A real ANTHROPIC_API_KEY is available (not the 'test-key' fallback)
+ * Otherwise the API-dependent tests are skipped.
+ */
+export const shouldRunE2E =
+  ['1', 'true', 'yes'].includes((process.env.RUN_E2E ?? '').toLowerCase()) &&
+  !!process.env.ANTHROPIC_API_KEY &&
+  process.env.ANTHROPIC_API_KEY !== 'test-key'
+
 export interface TestContext {
   workDir: string
   cleanup: () => Promise<void>
@@ -20,7 +32,7 @@ export async function createTestContext(): Promise<TestContext> {
     workDir,
     cleanup: async () => {
       await rm(workDir, { recursive: true, force: true })
-    }
+    },
   }
 }
 
@@ -49,8 +61,8 @@ export async function runAgent(
       env: {
         ...process.env,
         ...options.env,
-        ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || 'test-key'
-      }
+        ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || 'test-key',
+      },
     })
 
     let stdout = ''
@@ -63,15 +75,15 @@ export async function runAgent(
       setTimeout(() => proc.kill('SIGKILL'), 50000)
     }, timeout)
 
-    proc.stdout?.on('data', (data) => {
+    proc.stdout?.on('data', data => {
       stdout += data.toString()
     })
 
-    proc.stderr?.on('data', (data) => {
+    proc.stderr?.on('data', data => {
       stderr += data.toString()
     })
 
-    proc.on('close', (code) => {
+    proc.on('close', code => {
       clearTimeout(timer)
       const duration = Date.now() - startTime
 
@@ -82,30 +94,40 @@ export async function runAgent(
           stdout,
           stderr,
           exitCode: code,
-          duration
+          duration,
         })
       }
     })
 
-    proc.on('error', (err) => {
+    proc.on('error', err => {
       clearTimeout(timer)
       reject(err)
     })
   })
 }
 
-export async function writeTestFile(dir: string, filename: string, content: string): Promise<string> {
+export async function writeTestFile(
+  dir: string,
+  filename: string,
+  content: string
+): Promise<string> {
   const filepath = join(dir, filename)
   await writeFile(filepath, content, 'utf-8')
   return filepath
 }
 
-export async function readTestFile(dir: string, filename: string): Promise<string> {
+export async function readTestFile(
+  dir: string,
+  filename: string
+): Promise<string> {
   const filepath = join(dir, filename)
   return await readFile(filepath, 'utf-8')
 }
 
-export async function fileExists(dir: string, filename: string): Promise<boolean> {
+export async function fileExists(
+  dir: string,
+  filename: string
+): Promise<boolean> {
   try {
     await readTestFile(dir, filename)
     return true
@@ -114,7 +136,10 @@ export async function fileExists(dir: string, filename: string): Promise<boolean
   }
 }
 
-export async function createTestConfig(dir: string, config: any): Promise<string> {
+export async function createTestConfig(
+  dir: string,
+  config: any
+): Promise<string> {
   const configPath = join(dir, '.agent.yml')
   const yaml = Object.entries(config)
     .map(([key, value]) => `${key}: ${JSON.stringify(value)}`)

@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'bun:test'
-import { truncateMemoryIndex, MAX_ENTRYPOINT_LINES, MAX_ENTRYPOINT_BYTES } from './limits'
+import {
+  truncateMemoryIndex,
+  MAX_ENTRYPOINT_LINES,
+  MAX_ENTRYPOINT_BYTES,
+} from './limits'
 
 describe('truncateMemoryIndex', () => {
   it('returns content unchanged when within limits', () => {
@@ -20,7 +24,9 @@ describe('truncateMemoryIndex', () => {
     const longLine = '- [x](x.md) — ' + 'a'.repeat(500) + '\n'
     const content = longLine.repeat(60)
     const result = truncateMemoryIndex(content)
-    expect(Buffer.byteLength(result, 'utf8')).toBeLessThanOrEqual(MAX_ENTRYPOINT_BYTES + 100)
+    expect(Buffer.byteLength(result, 'utf8')).toBeLessThanOrEqual(
+      MAX_ENTRYPOINT_BYTES + 100
+    )
     expect(result).toContain('[truncated]')
   })
 })

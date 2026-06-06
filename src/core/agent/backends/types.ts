@@ -2,7 +2,7 @@ import type { SubAgentConfig } from '../types'
 import type { SubAgentModelConfig } from '../process'
 
 export const BACKEND_TYPES = ['in-process', 'tmux', 'iterm2'] as const
-export type BackendType = typeof BACKEND_TYPES[number]
+export type BackendType = (typeof BACKEND_TYPES)[number]
 
 export interface AgentBackend {
   /** backend 名称，用于日志 */

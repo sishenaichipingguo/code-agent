@@ -5,14 +5,18 @@ export async function openEditor(filePath: string): Promise<boolean> {
 
   return new Promise((resolve, reject) => {
     const proc = spawn(editor, [filePath], {
-      stdio: 'inherit'
+      stdio: 'inherit',
     })
 
-    proc.on('close', (code) => {
-      code === 0 ? resolve(true) : reject(false)
+    proc.on('close', code => {
+      if (code === 0) {
+        resolve(true)
+      } else {
+        reject(new Error(`Editor exited with code ${code}`))
+      }
     })
 
-    proc.on('error', (err) => {
+    proc.on('error', err => {
       reject(err)
     })
   })

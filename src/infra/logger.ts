@@ -5,14 +5,14 @@ export enum LogLevel {
   DEBUG = 0,
   INFO = 1,
   WARN = 2,
-  ERROR = 3
+  ERROR = 3,
 }
 
 export interface LogEntry {
   timestamp: string
   level: string
   message: string
-  context?: Record<string, any>
+  context?: Record<string, unknown>
 }
 
 export class Logger {
@@ -26,30 +26,34 @@ export class Logger {
     this.ensureLogDir()
   }
 
-  debug(message: string, context?: Record<string, any>) {
+  debug(message: string, context?: Record<string, unknown>) {
     this.log(LogLevel.DEBUG, message, context)
   }
 
-  info(message: string, context?: Record<string, any>) {
+  info(message: string, context?: Record<string, unknown>) {
     this.log(LogLevel.INFO, message, context)
   }
 
-  warn(message: string, context?: Record<string, any>) {
+  warn(message: string, context?: Record<string, unknown>) {
     this.log(LogLevel.WARN, message, context)
   }
 
-  error(message: string, context?: Record<string, any>) {
+  error(message: string, context?: Record<string, unknown>) {
     this.log(LogLevel.ERROR, message, context)
   }
 
-  private log(level: LogLevel, message: string, context?: Record<string, any>) {
+  private log(
+    level: LogLevel,
+    message: string,
+    context?: Record<string, unknown>
+  ) {
     if (level < this.level) return
 
     const entry: LogEntry = {
       timestamp: new Date().toISOString(),
       level: LogLevel[level],
       message,
-      context
+      context,
     }
 
     this.logToConsole(entry)
@@ -61,7 +65,7 @@ export class Logger {
       DEBUG: '\x1b[36m',
       INFO: '\x1b[32m',
       WARN: '\x1b[33m',
-      ERROR: '\x1b[31m'
+      ERROR: '\x1b[31m',
     }
     const reset = '\x1b[0m'
 
@@ -69,7 +73,9 @@ export class Logger {
     const time = entry.timestamp.split('T')[1].split('.')[0]
 
     const contextStr = entry.context ? ' ' + JSON.stringify(entry.context) : ''
-    console.log(`${color}[${time}] ${entry.level}${reset} ${entry.message}${contextStr}`)
+    console.log(
+      `${color}[${time}] ${entry.level}${reset} ${entry.message}${contextStr}`
+    )
   }
 
   private logToFile(entry: LogEntry) {
@@ -105,7 +111,14 @@ export function initLogger(config: { level: string; file: string }): Logger {
 
 export function getLogger(): Logger {
   if (!logger) {
-    throw new Error('Logger not initialized')
+    // Fall back to a default logger so modules that log can be used outside
+    // the worker server (e.g. one-off scripts) without explicit init.
+    logger = new Logger({
+      level: process.env.LOG_LEVEL || 'info',
+      file:
+        process.env.LOG_FILE ||
+        `${process.env.WORKER_DATA_DIR || '.'}/agent.log`,
+    })
   }
   return logger
 }

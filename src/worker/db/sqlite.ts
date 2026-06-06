@@ -1,7 +1,44 @@
 import { Database } from 'bun:sqlite'
 import { join } from 'path'
 import { existsSync, mkdirSync } from 'fs'
-import type { Session, Observation, Summary, UserPrompt } from '../types'
+import type {
+  Session,
+  Observation,
+  Summary,
+  UserPrompt,
+  PlatformSource,
+  ObservationType,
+} from '../types'
+
+// Raw row shapes as stored in SQLite (snake_case columns).
+interface SessionRow {
+  id: number
+  content_session_id: string
+  project: string
+  platform_source: string
+  cwd: string
+  created_at: number
+  updated_at: number
+  prompt_count: number
+}
+
+interface ObservationRow {
+  id: number
+  session_id: number
+  type: string
+  content: string
+  metadata: string
+  created_at: number
+}
+
+interface SummaryRow {
+  id: number
+  session_id: number
+  content: string
+  created_at: number
+}
+
+type SqlBinding = string | number | null
 
 export class SQLiteManager {
   private db: Database
@@ -96,11 +133,11 @@ export class SQLiteManager {
       id: result.lastInsertRowid as number,
       contentSessionId: data.contentSessionId,
       project: data.project,
-      platformSource: data.platformSource as any,
+      platformSource: data.platformSource as PlatformSource,
       cwd: data.cwd,
       createdAt: now,
       updatedAt: now,
-      promptCount: 0
+      promptCount: 0,
     }
   }
 
@@ -111,18 +148,18 @@ export class SQLiteManager {
       WHERE content_session_id = ?
     `)
 
-    const row = stmt.get(contentSessionId) as any
+    const row = stmt.get(contentSessionId) as SessionRow | null
     if (!row) return null
 
     return {
       id: row.id,
       contentSessionId: row.content_session_id,
       project: row.project,
-      platformSource: row.platform_source,
+      platformSource: row.platform_source as PlatformSource,
       cwd: row.cwd,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
-      promptCount: row.prompt_count
+      promptCount: row.prompt_count,
     }
   }
 
@@ -141,7 +178,7 @@ export class SQLiteManager {
     sessionId: number
     type: string
     content: string
-    metadata: Record<string, any>
+    metadata: Record<string, unknown>
   }): Observation {
     const now = Date.now()
     const stmt = this.db.prepare(`
@@ -160,10 +197,10 @@ export class SQLiteManager {
     return {
       id: result.lastInsertRowid as number,
       sessionId: data.sessionId,
-      type: data.type as any,
+      type: data.type as ObservationType,
       content: data.content,
       metadata: data.metadata,
-      createdAt: now
+      createdAt: now,
     }
   }
 
@@ -175,14 +212,14 @@ export class SQLiteManager {
       ORDER BY created_at DESC
     `)
 
-    const rows = stmt.all(sessionId) as any[]
+    const rows = stmt.all(sessionId) as ObservationRow[]
     return rows.map(row => ({
       id: row.id,
       sessionId: row.session_id,
-      type: row.type,
+      type: row.type as ObservationType,
       content: row.content,
       metadata: JSON.parse(row.metadata),
-      createdAt: row.created_at
+      createdAt: row.created_at,
     }))
   }
 
@@ -195,7 +232,7 @@ export class SQLiteManager {
     offset?: number
   }): { observations: Observation[]; total: number } {
     let whereClause = '1=1'
-    const bindings: any[] = []
+    const bindings: SqlBinding[] = []
 
     if (params.project) {
       whereClause += ' AND s.project = ?'
@@ -224,7 +261,7 @@ export class SQLiteManager {
       JOIN sessions s ON o.session_id = s.id
       WHERE ${whereClause}
     `)
-    const countRow = countStmt.get(...bindings) as any
+    const countRow = countStmt.get(...bindings) as { count: number }
     const total = countRow.count
 
     // Get paginated results
@@ -240,14 +277,14 @@ export class SQLiteManager {
       LIMIT ? OFFSET ?
     `)
 
-    const rows = stmt.all(...bindings, limit, offset) as any[]
+    const rows = stmt.all(...bindings, limit, offset) as ObservationRow[]
     const observations = rows.map(row => ({
       id: row.id,
       sessionId: row.session_id,
-      type: row.type,
+      type: row.type as ObservationType,
       content: row.content,
       metadata: JSON.parse(row.metadata),
-      createdAt: row.created_at
+      createdAt: row.created_at,
     }))
 
     return { observations, total }
@@ -255,10 +292,7 @@ export class SQLiteManager {
 
   // ============ Summaries ============
 
-  createSummary(data: {
-    sessionId: number
-    content: string
-  }): Summary {
+  createSummary(data: { sessionId: number; content: string }): Summary {
     const now = Date.now()
     const stmt = this.db.prepare(`
       INSERT INTO summaries (session_id, content, created_at)
@@ -271,7 +305,7 @@ export class SQLiteManager {
       id: result.lastInsertRowid as number,
       sessionId: data.sessionId,
       content: data.content,
-      createdAt: now
+      createdAt: now,
     }
   }
 
@@ -283,12 +317,12 @@ export class SQLiteManager {
       ORDER BY created_at DESC
     `)
 
-    const rows = stmt.all(sessionId) as any[]
+    const rows = stmt.all(sessionId) as SummaryRow[]
     return rows.map(row => ({
       id: row.id,
       sessionId: row.session_id,
       content: row.content,
-      createdAt: row.created_at
+      createdAt: row.created_at,
     }))
   }
 
@@ -305,14 +339,19 @@ export class SQLiteManager {
       VALUES (?, ?, ?, ?)
     `)
 
-    const result = stmt.run(data.sessionId, data.promptNumber, data.content, now)
+    const result = stmt.run(
+      data.sessionId,
+      data.promptNumber,
+      data.content,
+      now
+    )
 
     return {
       id: result.lastInsertRowid as number,
       sessionId: data.sessionId,
       promptNumber: data.promptNumber,
       content: data.content,
-      createdAt: now
+      createdAt: now,
     }
   }
 

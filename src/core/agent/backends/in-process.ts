@@ -27,9 +27,11 @@ export class InProcessBackend implements AgentBackend {
           SUBAGENT_MODEL: modelConfig.model,
           SUBAGENT_API_KEY: modelConfig.apiKey ?? '',
           SUBAGENT_BASE_URL: modelConfig.baseUrl ?? '',
-          SUBAGENT_MAX_TOKENS: String(modelConfig.maxTokens ?? config.maxTokens ?? 4096),
-          MEMORY_NAMESPACE: `sub-${config.type}-${Date.now()}`
-        }
+          SUBAGENT_MAX_TOKENS: String(
+            modelConfig.maxTokens ?? config.maxTokens ?? 4096
+          ),
+          MEMORY_NAMESPACE: `sub-${config.type}-${Date.now()}`,
+        },
       })
 
       const timer = setTimeout(() => {
@@ -37,29 +39,35 @@ export class InProcessBackend implements AgentBackend {
         reject(new Error(`SubAgent timeout after ${config.timeout}ms`))
       }, config.timeout)
 
-      this.process.stdout?.on('data', (data) => {
+      this.process.stdout?.on('data', data => {
         this.outputBuffer += data.toString()
       })
 
-      this.process.stderr?.on('data', (data) => {
+      this.process.stderr?.on('data', data => {
         process.stderr.write(data)
       })
 
-      this.process.on('close', (code) => {
+      this.process.on('close', code => {
         clearTimeout(timer)
         if (code === 0 || this.outputBuffer.trim()) {
           try {
             const result = JSON.parse(this.outputBuffer.trim())
-            resolve(result.success ? result.result : (result.error ?? 'SubAgent failed'))
+            resolve(
+              result.success
+                ? result.result
+                : (result.error ?? 'SubAgent failed')
+            )
           } catch {
-            resolve(this.outputBuffer.trim() || 'SubAgent completed with no output')
+            resolve(
+              this.outputBuffer.trim() || 'SubAgent completed with no output'
+            )
           }
         } else {
           reject(new Error(`SubAgent exited with code ${code}`))
         }
       })
 
-      this.process.on('error', (error) => {
+      this.process.on('error', error => {
         clearTimeout(timer)
         reject(error)
       })
