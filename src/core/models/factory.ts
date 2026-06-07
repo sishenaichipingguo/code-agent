@@ -9,7 +9,8 @@ export class ModelFactory {
       case 'anthropic':
         return new AnthropicAdapter({
           apiKey: config.apiKey || process.env.ANTHROPIC_API_KEY || '',
-          model: config.model
+          model: config.model,
+          baseUrl: config.baseUrl || process.env.ANTHROPIC_BASE_URL
         })
 
       case 'ollama':

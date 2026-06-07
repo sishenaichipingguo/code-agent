@@ -80,7 +80,8 @@ export class Logger {
   }
 
   private parseLevel(level: string): LogLevel {
-    return LogLevel[level.toUpperCase() as keyof typeof LogLevel] || LogLevel.INFO
+    const parsed = LogLevel[level.toUpperCase() as keyof typeof LogLevel]
+    return parsed !== undefined ? parsed : LogLevel.INFO
   }
 
   private ensureLogDir() {

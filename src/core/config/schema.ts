@@ -21,7 +21,7 @@ const McpExposeSchema = z.object({
 })
 
 export const ConfigSchema = z.object({
-  model: z.string().default('claude-sonnet-4'),
+  model: z.string().default('claude-sonnet-4-6'),
   mode: z.enum(['yolo', 'safe']).default('yolo'),
 
   // Provider configuration
@@ -69,7 +69,7 @@ export const ConfigSchema = z.object({
     z.array(z.object({
       command: z.string(),
       onError: z.enum(['warn', 'abort', 'ignore']).default('warn'),
-      timeout: z.number().default(5000)
+      timeout: z.number().default(500000)
     }))
   ).optional()
 })
@@ -77,7 +77,7 @@ export const ConfigSchema = z.object({
 export type Config = z.infer<typeof ConfigSchema>
 
 export const DEFAULT_CONFIG: Config = {
-  model: 'claude-sonnet-4',
+  model: 'claude-sonnet-4-6',
   mode: 'yolo',
   session: {
     autoSave: true,

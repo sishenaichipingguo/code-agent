@@ -69,7 +69,7 @@ export class InProcessBackend implements AgentBackend {
   kill() {
     if (this.process) {
       this.process.kill('SIGTERM')
-      setTimeout(() => this.process?.kill('SIGKILL'), 5000)
+      setTimeout(() => this.process?.kill('SIGKILL'), 50000)
     }
   }
 }

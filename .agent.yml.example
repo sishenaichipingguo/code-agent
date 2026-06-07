@@ -2,7 +2,7 @@
 
 # Provider: anthropic, ollama, openai, openai-compatible
 provider: anthropic
-model: claude-sonnet-4
+model: claude-sonnet-4-6
 # apiKey: sk-ant-xxx  # Optional, uses ANTHROPIC_API_KEY env var
 
 # Execution mode

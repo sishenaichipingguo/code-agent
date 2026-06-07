@@ -7,15 +7,17 @@ interface MessageProps {
 }
 
 export function Message({ role, content }: MessageProps) {
-  const icon = role === 'user' ? '👤' : '🤖'
+  const prefix = role === 'user' ? '❯' : '◆'
   const color = role === 'user' ? 'cyan' : 'green'
+  const label = role === 'user' ? 'You' : 'Assistant'
 
   return (
-    <Box flexDirection="column" marginY={1}>
+    <Box flexDirection="column" marginBottom={1}>
       <Box>
-        <Text color={color} bold>{icon} {role === 'user' ? 'You' : 'Assistant'}:</Text>
+        <Text color={color} bold>{prefix} </Text>
+        <Text color={color} bold>{label}</Text>
       </Box>
-      <Box paddingLeft={3}>
+      <Box paddingLeft={2}>
         <Text>{content}</Text>
       </Box>
     </Box>

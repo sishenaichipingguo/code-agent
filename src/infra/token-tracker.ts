@@ -20,7 +20,7 @@ export class TokenTracker {
 
   private pricing: Record<string, { input: number; output: number; cacheWrite: number; cacheRead: number }> = {
     'claude-opus-4':    { input: 15 / 1_000_000, output: 75 / 1_000_000, cacheWrite: 18.75 / 1_000_000, cacheRead: 1.5 / 1_000_000 },
-    'claude-sonnet-4':  { input: 3 / 1_000_000,  output: 15 / 1_000_000, cacheWrite: 3.75 / 1_000_000,  cacheRead: 0.3 / 1_000_000 },
+    'claude-sonnet-4-6':  { input: 3 / 1_000_000,  output: 15 / 1_000_000, cacheWrite: 3.75 / 1_000_000,  cacheRead: 0.3 / 1_000_000 },
     'claude-haiku-4':   { input: 0.25 / 1_000_000, output: 1.25 / 1_000_000, cacheWrite: 0.3 / 1_000_000, cacheRead: 0.03 / 1_000_000 },
   }
 

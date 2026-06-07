@@ -69,10 +69,12 @@ export async function withRetry<T>(
     try {
       return await fn()
     } catch (error) {
-      const isRetryable = error instanceof AgentError &&
+      const isAgentRetryable = error instanceof AgentError &&
         retryableErrors.includes(error.code)
+      const httpStatus = (error as any)?.status ?? (error as any)?.statusCode
+      const isHttpRetryable = httpStatus === 503 || httpStatus === 502 || httpStatus === 429
 
-      if (!isRetryable || attempt === maxRetries - 1) {
+      if ((!isAgentRetryable && !isHttpRetryable) || attempt === maxRetries - 1) {
         throw error
       }
 

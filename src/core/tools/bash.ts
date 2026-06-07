@@ -74,7 +74,7 @@ function executeForeground(command: string, timeout: number): Promise<string> {
     const timer = setTimeout(() => {
       killed = true
       proc.kill('SIGTERM')
-      setTimeout(() => proc.kill('SIGKILL'), 5000)
+      setTimeout(() => proc.kill('SIGKILL'), 50000)
     }, timeout)
     proc.stdout.on('data', (d: Buffer) => {
       stdout += d.toString()

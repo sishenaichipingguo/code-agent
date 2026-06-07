@@ -3,7 +3,7 @@ import { ContextManager } from './manager'
 import type { RawMessage } from './compressors/types'
 
 const mockModel = {
-  name: 'claude-sonnet-4',
+  name: 'claude-sonnet-4-6',
   capabilities: { tools: false, streaming: false, vision: false },
   chat: mock(async () => ({ type: 'text' as const, content: 'summary text' }))
 }
@@ -17,19 +17,19 @@ const makeMessages = (n: number): RawMessage[] =>
 describe('ContextManager', () => {
   describe('shouldCompress', () => {
     it('returns false below 80% threshold', () => {
-      const cm = new ContextManager(mockModel as any, 'claude-sonnet-4')
+      const cm = new ContextManager(mockModel as any, 'claude-sonnet-4-6')
       expect(cm.shouldCompress(100_000)).toBe(false)
     })
 
     it('returns true at 80% threshold', () => {
-      const cm = new ContextManager(mockModel as any, 'claude-sonnet-4')
+      const cm = new ContextManager(mockModel as any, 'claude-sonnet-4-6')
       expect(cm.shouldCompress(160_001)).toBe(true)
     })
   })
 
   describe('compress with auto strategy', () => {
     it('returns compressed messages with re-hydration marker prepended', async () => {
-      const cm = new ContextManager(mockModel as any, 'claude-sonnet-4')
+      const cm = new ContextManager(mockModel as any, 'claude-sonnet-4-6')
       const messages = makeMessages(12)
       const result = await cm.compress(messages, 'auto')
       // First message should be the re-hydration marker
@@ -41,7 +41,7 @@ describe('ContextManager', () => {
 
   describe('compress with micro strategy', () => {
     it('only compresses oldest 20% and prepends marker', async () => {
-      const cm = new ContextManager(mockModel as any, 'claude-sonnet-4')
+      const cm = new ContextManager(mockModel as any, 'claude-sonnet-4-6')
       const messages = makeMessages(20)
       const result = await cm.compress(messages, 'micro')
       expect(result[0].content).toContain('[Context compressed')
@@ -52,7 +52,7 @@ describe('ContextManager', () => {
 
   describe('compress with manual strategy', () => {
     it('replaces all messages with marker + summary', async () => {
-      const cm = new ContextManager(mockModel as any, 'claude-sonnet-4')
+      const cm = new ContextManager(mockModel as any, 'claude-sonnet-4-6')
       const messages = makeMessages(10)
       const result = await cm.compress(messages, 'manual')
       expect(result.length).toBe(1)
@@ -62,7 +62,7 @@ describe('ContextManager', () => {
 
   describe('ptlRetry', () => {
     it('calls fn and returns result when no PTL error', async () => {
-      const cm = new ContextManager(mockModel as any, 'claude-sonnet-4')
+      const cm = new ContextManager(mockModel as any, 'claude-sonnet-4-6')
       const messages = makeMessages(12)
       let called = false
       const result = await cm.ptlRetry(messages, async () => {
@@ -74,7 +74,7 @@ describe('ContextManager', () => {
     })
 
     it('compresses and retries once when PTL error is thrown', async () => {
-      const cm = new ContextManager(mockModel as any, 'claude-sonnet-4')
+      const cm = new ContextManager(mockModel as any, 'claude-sonnet-4-6')
       const messages = makeMessages(12)
       let callCount = 0
       const result = await cm.ptlRetry(messages, async () => {

@@ -4,7 +4,7 @@ import { ConfigSchema, DEFAULT_CONFIG } from './schema'
 describe('ConfigSchema', () => {
   it('parses a minimal config with defaults', () => {
     const result = ConfigSchema.parse({})
-    expect(result.model).toBe('claude-sonnet-4')
+    expect(result.model).toBe('claude-sonnet-4-6')
     expect(result.mode).toBe('yolo')
     expect(result.provider).toBe('anthropic')
   })
@@ -68,7 +68,7 @@ describe('ConfigSchema', () => {
 
 describe('DEFAULT_CONFIG', () => {
   it('has expected default values', () => {
-    expect(DEFAULT_CONFIG.model).toBe('claude-sonnet-4')
+    expect(DEFAULT_CONFIG.model).toBe('claude-sonnet-4-6')
     expect(DEFAULT_CONFIG.mode).toBe('yolo')
     expect(DEFAULT_CONFIG.session?.autoSave).toBe(true)
     expect(DEFAULT_CONFIG.session?.saveDir).toBe('.agent/sessions')
@@ -138,7 +138,7 @@ describe('mcp config', () => {
   })
 
   it('mcp field is optional — existing configs still parse', () => {
-    const result = ConfigSchema.safeParse({ model: 'claude-sonnet-4', mode: 'yolo' })
+    const result = ConfigSchema.safeParse({ model: 'claude-sonnet-4-6', mode: 'yolo' })
     expect(result.success).toBe(true)
     if (result.success) expect(result.data.mcp).toBeUndefined()
   })

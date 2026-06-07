@@ -12,7 +12,7 @@ export const SUBAGENT_CONFIGS: Record<SubAgentType, SubAgentConfig> = {
   'explore': {
     type: 'explore',
     allowedTools: ['read', 'glob', 'grep', 'ls'],
-    maxTokens: 50000,
+    maxTokens: 500000,
     timeout: 300000,
     systemPrompt: 'You are a codebase exploration expert. Quickly locate relevant files and code using read-only tools.'
   },
