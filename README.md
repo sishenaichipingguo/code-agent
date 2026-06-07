@@ -2,6 +2,21 @@
 
 AI-powered coding assistant with enterprise reliability and developer experience.
 
+## 博客系列：从零理解 AI Agent
+
+循序渐进的中文教程，每篇"概念 → 项目实现 → 动手练习"：
+
+| # | 主题 | 核心概念 |
+|---|------|---------|
+| 1 | [什么是 AI Agent？](docs/blog/01-what-is-agent.md) | ReAct 循环 |
+| 2 | [Tool Use](docs/blog/02-tool-use.md) | Function Calling |
+| 3 | [权限模型](docs/blog/03-permissions.md) | YOLO vs Safe Mode |
+| 4 | [System Prompt 工程](docs/blog/04-system-prompt.md) | 动态组装 |
+| 5 | [上下文压缩](docs/blog/05-context-compression.md) | 滑动窗口摘要 |
+| 6 | [记忆系统](docs/blog/06-memory.md) | 跨会话持久化 |
+| 7 | [多模型支持](docs/blog/07-multi-model.md) | 适配器模式 |
+| 8 | [Sub-Agent](docs/blog/08-sub-agent.md) | Agent 调用 Agent |
+
 ## Features
 
 - 🚀 **Fast Startup** - < 100ms launch time

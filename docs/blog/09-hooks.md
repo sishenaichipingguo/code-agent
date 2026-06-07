@@ -1,12 +1,18 @@
 # Hooks 系统 —— 不改核心代码的扩展点
 
-## 一、问题背景：扩展 Agent 行为的困境
+## 一、想加日志，但不想改核心代码
 
-你想在每次工具执行后记录日志，或者在 agent 输出前做内容过滤，或者在会话开始时初始化一些状态。
+有一次我想知道 agent 在一次任务里执行了哪些 bash 命令，方便事后审计。
 
-最直接的做法是改 `AgentLoop` 的源码。但这样每次升级都要重新合并你的修改，而且你的定制逻辑和核心逻辑混在一起，很难维护。
+最直接的做法是在 `ToolRegistry.execute()` 里加几行日志代码。但这样每次升级都要重新合并我的修改，而且日志逻辑和核心逻辑混在一起，很难维护。
 
-这是软件工程里的经典问题：**如何在不修改核心代码的情况下扩展系统行为？**
+我想要的是：**在不修改核心代码的情况下，在工具执行后自动运行我的日志脚本。**
+
+这就是 hooks 系统要解决的问题。
+
+## 二、扩展系统行为的几种方式
+
+这是软件工程里的经典问题：如何在不修改核心代码的情况下扩展系统行为？
 
 常见的解法有几种：
 - **继承（Inheritance）**：子类覆盖父类方法。但继承会创建紧耦合，而且 JavaScript/TypeScript 的单继承限制了灵活性。
@@ -18,21 +24,7 @@
 
 这和 git hooks 的思路完全一样——`pre-commit`、`post-merge` 都是这种模式。
 
-## 二、核心矛盾：灵活性 vs 安全性
-
-Hooks 系统的核心矛盾是：**你希望 hooks 能做任何事（灵活），但 hooks 执行的是外部代码，可能影响 agent 的核心行为（风险）。**
-
-这个矛盾有几个维度：
-
-**执行权限**：hook 脚本以什么权限运行？如果 hook 脚本可以修改 agent 的工具输入，它实际上拥有了和 agent 相同的权限。
-
-**失败处理**：hook 脚本失败时怎么办？如果 hook 失败导致整个 agent 停止，那 hook 的可靠性要求和 agent 核心代码一样高，失去了"轻量扩展"的意义。
-
-**超时控制**：hook 脚本可能卡住（比如网络请求超时），如何防止 hook 卡住整个 agent？
-
-**数据修改**：有些 hook 只需要"观察"（记录日志），有些 hook 需要"修改"（内容过滤）。这两种需求的接口设计应该不同。
-
-## 三、设计空间：两种 Hook 类型
+## 三、两种 Hook 类型
 
 解决"观察 vs 修改"的矛盾，这个项目设计了两种 hook 类型：
 
@@ -180,6 +172,8 @@ const timer = setTimeout(() => {
 
 超时后先发 `SIGTERM`，3 秒后如果还没退出再发 `SIGKILL`。这防止 hook 脚本卡住导致整个 agent 挂起。
 
+这里再啰嗦一下：`transform` hook 如果脚本输出空或非 JSON，`HookManager` 会保持原始数据不变。这是一个静默失败——你可能以为 hook 生效了，但实际上没有。调试 `transform` hook 不生效时，第一件事是检查脚本的 stdout 输出是否是合法的 JSON。
+
 ## 五、边界条件和陷阱
 
 **Hook 脚本的副作用**：hook 脚本可以做任何事——写文件、发网络请求、修改环境变量。这种灵活性也意味着 hook 脚本可能产生意外的副作用。需要谨慎设计 hook 脚本，避免它们影响 agent 的核心行为。
@@ -211,7 +205,6 @@ Hooks 系统是整个 agent 系统的"观测层"——通过 hooks，你可以�
 ```bash
 # scripts/log-bash.sh
 #!/bin/bash
-# 从 stdin 读取 payload（JSON 格式）
 payload=$(cat)
 tool_name=$(echo "$payload" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('name',''))")
 
@@ -225,7 +218,6 @@ echo "$payload"
 ```
 
 ```yaml
-# .agent.yml
 hooks:
   pre-tool:
     - command: "bash scripts/log-bash.sh"

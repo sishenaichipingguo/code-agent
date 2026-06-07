@@ -1,25 +1,22 @@
 # 记忆系统 —— 让 Agent 跨越会话的遗忘
 
-## 一、问题背景：LLM 为什么没有"原生"长期记忆
+## 一、每次都要重新告诉它
 
-人类的记忆分几种：
-- **工作记忆**：当前正在处理的信息，容量有限（类比：context window）
-- **情景记忆**：具体事件的记忆（"上周三我们讨论了 X"）
-- **语义记忆**：知识和概念（"Python 的 list 是可变的"）
-- **程序记忆**：技能和习惯（"这个用户喜欢简洁的代码风格"）
+我用 agent 写代码，第一次对话告诉它："我不喜欢过度注释，函数名要自解释，禁止用 any 类型。"
 
-LLM 有语义记忆（训练数据里的知识），但没有情景记忆和程序记忆——每次调用都是全新的，不记得之前发生了什么。
+它记住了，那次对话写的代码很干净。
 
-这不是 LLM 的 bug，而是它的架构决定的。LLM 是一个**无状态函数**：给定输入，产生输出，不保留任何状态。每次调用之间没有任何连接。
+第二天开了新对话，它又开始写大量注释，又开始用 any。
 
-这对 agent 来说是个大问题：
-- 用户告诉 agent "我不喜欢过度注释"，下次对话 agent 又开始写大量注释
-- agent 上次花了 30 分钟分析了一个复杂的代码库，下次对话又要重新分析
-- 团队里多个人用同一个 agent，每个人都要重复告诉 agent 项目的基本规则
+我又告诉它一遍。
 
-解法是**外部记忆**：把需要持久化的信息存到外部存储，每次对话时按需加载。这本质上是给无状态函数加了一个"状态层"。
+第三天，同样的事情发生了。
 
-## 二、核心矛盾：记忆完整性 vs 检索效率
+这不是 agent 的 bug，是 LLM 的架构决定的。LLM 是一个**无状态函数**：给定输入，产生输出，不保留任何状态。每次调用之间没有任何连接。每次对话都是全新的，它不记得上次发生了什么。
+
+**解法是外部记忆**：把需要持久化的信息存到外部存储，每次对话时按需加载。这本质上是给无状态函数加了一个"状态层"。
+
+## 二、存什么，怎么检索
 
 记忆系统的核心矛盾是：**你希望 agent 记住尽可能多的信息，但把所有记忆都塞进 context 太贵，而且会稀释当前任务的相关信息。**
 
@@ -31,9 +28,7 @@ LLM 有语义记忆（训练数据里的知识），但没有情景记忆和程�
 
 **怎么更新**：记忆会过时。"用户在用 Python 2"这条记忆，在用户升级到 Python 3 后就错了。如何识别和更新过时的记忆？
 
-**怎么遗忘**：记忆太多怎么办？不能无限积累，需要有某种"遗忘"机制。
-
-## 三、设计空间：向量数据库 vs 文件索引
+## 三、向量数据库 vs 文件索引
 
 两种主流方案：
 
@@ -88,7 +83,7 @@ LLM 有语义记忆（训练数据里的知识），但没有情景记忆和程�
 
 这样避免把所有记忆都塞进 context——如果你有 50 条记忆，全部注入会占用大量 token，但实际上每次对话只需要其中几条。
 
-这个设计和数据库索引的思路完全一样：索引告诉你"数据在哪里"，你按需读取具体数据，而不是把整个数据库加载到内存里。
+这个设计和数据库索引的思路完全一样：索引告诉你"数据在哪里"，你按需读取具体数据，而不是把整个数据库加载到内存里。这里再啰嗦一下：两阶段加载是记忆系统里最重要的设计决策，分析"为什么 agent 没有用到某条记忆"时，要先检查索引里有没有这条记忆，再检查模型是否注意到了它。
 
 ## 五、项目实现
 
@@ -155,20 +150,6 @@ constructor(projectRoot: string) {
 
 这个设计解决了一个实际问题：子 agent 可能会保存一些"临时性"的记忆（比如"当前任务的中间状态"），这些记忆不应该污染主 agent 的记忆空间，但主 agent 需要能看到子 agent 保存了什么。
 
-### SessionStore：会话间的工作连续性
-
-`SessionStore` 解决的是另一个问题：上次对话做了什么？
-
-它不是"关于用户的记忆"，而是"上次会话的工作摘要"。每次会话结束时，agent 把本次对话的关键内容写入 SessionStore，下次启动时注入 system prompt 的 `## Previous Session` 节。
-
-这让 agent 在多次会话里保持工作连续性——不需要用户每次都重新解释"上次我们做到哪了"。
-
-### TeamStore：团队共享知识
-
-`TeamStore` 是多人协作场景的扩展。团队成员共享的知识（数据库地址、部署脚本位置、项目约定）存在 TeamStore 里，每个人的 agent 都能看到。
-
-`SystemPromptBuilder` 会把 `TeamStore` 的索引注入 `## Team Memory` 节，和个人记忆并列显示。
-
 ## 六、边界条件和陷阱
 
 **记忆的过时问题**：记忆会过时，但 agent 不知道。"用户在用 Python 2"这条记忆，在用户升级到 Python 3 后就错了，但 agent 还会基于它做决策。需要定期审查记忆，删除或更新过时的条目。
@@ -234,6 +215,6 @@ load(name: string): string {
 
 ---
 
-> **English Summary:** LLMs have no native long-term memory — every call starts fresh. The memory system uses a two-phase design: a `MEMORY.md` index is injected into the system prompt (agent knows what exists), full content is loaded on demand via `memory_load` (agent loads what's relevant). Four memory types: user, feedback, project, reference. `MEMORY_NAMESPACE` isolates sub-agent memories. `SessionStore` maintains cross-session work continuity. Key pitfall: memories go stale and the system has no automatic staleness detection.
+> **English Summary:** LLMs have no native long-term memory — every call starts fresh. The memory system uses a two-phase design: a `MEMORY.md` index is injected into the system prompt (agent knows what exists), full content is loaded on demand via `memory_load` (agent loads what's relevant). Four memory types: user, feedback, project, reference. `MEMORY_NAMESPACE` isolates sub-agent memories. Key pitfall: memories go stale and the system has no automatic staleness detection.
 >
 > ⭐ Next: [Multi-Model →](./07-multi-model.md)

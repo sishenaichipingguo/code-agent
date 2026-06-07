@@ -1,22 +1,18 @@
 # Sub-Agent —— Agent 调用 Agent
 
-## 一、问题背景：单个 Agent 的局限
+## 一、单个 Agent 撑不住大任务
 
-单个 agent 有几个根本性的局限：
+有一次我让 agent 分析一个有几百个文件的代码库，任务是"找出所有的 API 端点，整理成文档"。
 
-**Context window 有限**：复杂任务需要大量上下文，但 context window 有上限。一个需要分析整个代码库的任务，可能需要的上下文远超单个 agent 能处理的范围。
+agent 开始一个一个读文件。读了大概 40 个文件后，context 快满了，触发了压缩。压缩后继续读，又快满了，又压缩。压缩了几次之后，agent 开始"忘事"——它不记得之前分析过哪些文件，开始重复读已经读过的文件。
 
-**任务容易混乱**：当一个 agent 同时处理多个子任务时，不同子任务的上下文会互相干扰。agent 可能在处理子任务 A 时，被子任务 B 的上下文"污染"，导致错误。
+最后任务失败了，不是因为 context 溢出，而是因为 agent 陷入了循环。
 
-**无法并行**：单个 agent 是串行的——它必须完成一个工具调用才能开始下一个。如果两个子任务互相独立，串行执行会浪费时间。
+这是单个 agent 的根本局限：**它是串行的，context 是有限的，任务越大，越容易在中途迷失。**
 
-**工具权限难以细化**：主 agent 可能有很多工具（包括危险的工具如 `bash`、`rm`），但某些子任务只需要读取权限。给子任务完整的工具集是不必要的风险。
+解法是任务分解：主 agent 把大任务拆成子任务，派发给专门的子 agent 执行，收集结果后汇总。类比：项目经理（主 agent）把需求拆给前端工程师和后端工程师（子 agent），最后整合交付。
 
-解法是**任务分解**：主 agent 把大任务拆成子任务，派发给专门的子 agent 执行，收集结果后汇总。
-
-类比：项目经理（主 agent）把需求拆给前端工程师和后端工程师（子 agent），最后整合交付。
-
-## 二、核心矛盾：隔离 vs 通信
+## 二、隔离 vs 通信
 
 Sub-agent 模式的核心矛盾是：**你希望子 agent 完全隔离（避免干扰），但又需要它们能和主 agent 通信（传递结果）。**
 
@@ -28,7 +24,7 @@ Sub-agent 模式的核心矛盾是：**你希望子 agent 完全隔离（避免�
 
 **权限继承 vs 权限隔离**：子 agent 应该继承主 agent 的所有权限，还是只有最小权限？继承更方便，但违反最小权限原则。
 
-## 三、设计空间：子 agent 的协调模式
+## 三、子 agent 的协调模式
 
 子 agent 可以用几种不同的方式协调：
 
@@ -130,6 +126,8 @@ process.stdout.write(JSON.stringify({ result: finalText }))
 
 为什么不用其他通信方式（比如 IPC、共享内存）？因为进程间通过 stdout/stderr 通信是最简单、最通用的方式——不需要额外的依赖，任何语言都支持，而且天然支持流式输出。
 
+这里再啰嗦一下：stdout/stderr 分离不只是"好习惯"，是 sub-agent 架构能正常工作的前提。如果子 agent 的诊断输出混进了 stdout，主 agent 解析 JSON 时就会出错，整个任务失败。分析 sub-agent 通信问题时，第一件事是检查 stdout 里有没有混入非 JSON 内容。
+
 ### createRestricted()：给子 agent 最小权限
 
 子 agent 不需要主 agent 的全部工具。一个只负责分析代码的子 agent，只需要 `read`、`glob`、`grep`，不需要 `bash`、`write`、`rm`：
@@ -203,4 +201,4 @@ Sub-agent 和多模型支持（第 7 篇）可以结合：不同的子 agent 可
 
 > **English Summary:** `AgentTool` dispatches sub-agents via `AgentDispatcher`. `run_in_background=true` returns an agent ID immediately; `SendMessageTool` collects the result later — enabling true async parallel execution. Sub-agents communicate via stdout (JSON result) and stderr (diagnostics), keeping the channels clean. `createRestricted()` gives sub-agents a minimal tool subset following the principle of least privilege.
 >
-> ⭐ [GitHub: code-agent](https://github.com/your-repo/code-agent) | Next: [Hooks System →](./09-hooks.md)
+> ⭐ Next: [Hooks System →](./09-hooks.md)
