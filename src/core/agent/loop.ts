@@ -18,6 +18,7 @@ export interface AgentContext {
   initialMessages?: Array<{ role: 'user' | 'assistant'; content: any }>
   sessionManager?: SessionManager
   hooks?: HookManager
+  memoryRecallFn?: (query: string, project?: string) => Promise<string>
   onChunk?: (chunk:
     | { type: 'text'; content: string }
     | { type: 'tool_start'; name: string; input: string }
@@ -56,6 +57,31 @@ export class AgentLoop {
     try {
       await this.context.hooks?.fire('session-start', hookEnv)
 
+      // Trigger user-prompt-submit hook for memory system initialization
+      await this.context.hooks?.fire('user-prompt-submit', {
+        ...hookEnv,
+        USER_PROMPT: userMessage,
+        SESSION_ID: this.context.sessionManager?.getCurrentSession()?.id || 'unknown'
+      })
+
+      // Recall relevant memories from past sessions
+      let recalledMemories = ''
+      if (this.context.memoryRecallFn) {
+        try {
+          recalledMemories = await this.context.memoryRecallFn(userMessage)
+          if (recalledMemories) {
+            this.context.logger.debug('Recalled memories', { length: recalledMemories.length })
+          }
+        } catch (error: any) {
+          this.context.logger.warn('Memory recall failed', { error: error.message })
+        }
+      }
+
+      // Build dynamic system prompt with recalled memories
+      const dynamicSystemPrompt = recalledMemories
+        ? `${this.context.systemPrompt}\n\n${recalledMemories}`
+        : this.context.systemPrompt
+
       let turn = 0
       while (true) {
         turn++
@@ -63,7 +89,7 @@ export class AgentLoop {
           model: this.context.model.name,
           messages,
           stream: !!this.context.streaming,
-          system: this.context.systemPrompt
+          system: dynamicSystemPrompt
         }
 
         this.context.logger.debug(`Turn ${turn}: sending ${messages.length} messages`, {
@@ -194,6 +220,15 @@ export class AgentLoop {
         const resultStr = typeof result === 'string' ? result : JSON.stringify(result)
 
         this.context.onChunk?.({ type: 'tool_end', name: tool.name, duration, result: resultStr })
+
+        // Trigger post-tool-use hook for recording observation
+        await this.context.hooks?.fire('post-tool-use', {
+          AGENT_CWD: process.cwd(),
+          TOOL_NAME: tool.name,
+          TOOL_INPUT: JSON.stringify(tool.input),
+          TOOL_RESULT: resultStr.slice(0, 10000), // Limit size to avoid env var overflow
+          SESSION_ID: this.context.sessionManager?.getCurrentSession()?.id || 'unknown'
+        })
 
         return { id: tool.id, result }
       } catch (error: any) {

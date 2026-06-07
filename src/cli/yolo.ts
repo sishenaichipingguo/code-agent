@@ -31,6 +31,8 @@ import { SessionStore } from '@/core/memory/session-store'
 import { createHookManager } from '@/core/hooks/manager'
 import { AutoExtractor } from '@/core/memory/auto-extractor'
 import type { TeamStore } from '@/core/memory/team-store'
+import { WorkerManager } from '@/worker/manager'
+import { createMemoryHooks } from '@/worker/hooks'
 
 export async function runYolo(args: Args) {
   const config = await loadConfig(args.config)
@@ -42,6 +44,47 @@ export async function runYolo(args: Args) {
   const sessionManager = new SessionManager()
 
   logger.info('Starting in YOLO mode')
+
+  // Start Worker Service if memory is enabled
+  let workerManager: WorkerManager | undefined
+  if (args.withMemory) {
+    const apiKey = process.env.ANTHROPIC_API_KEY || config.apiKey
+    if (!apiKey) {
+      process.stderr.write('⚠️  Memory system requires ANTHROPIC_API_KEY\n')
+      process.stderr.write('   Set it with: export ANTHROPIC_API_KEY="your-key"\n')
+      process.stderr.write('   Continuing without memory...\n')
+    } else {
+      try {
+        process.stderr.write('🧠 Starting memory system...\n')
+        workerManager = new WorkerManager({
+          apiKey,
+          verbose: args.verbose,
+          dataDir: join(os.homedir(), '.claude-mem')
+        })
+        await workerManager.start()
+
+        // Wait for health check
+        const healthy = await workerManager.waitForHealth()
+        if (!healthy) {
+          throw new Error('Worker health check failed')
+        }
+
+        logger.info('Memory system started', { port: workerManager.getPort() })
+      } catch (error: any) {
+        process.stderr.write(`⚠️  Failed to start memory system: ${error.message}\n`)
+        process.stderr.write('   Continuing without memory...\n')
+        workerManager = undefined
+      }
+    }
+  }
+
+  // Register Worker cleanup
+  if (workerManager) {
+    shutdown.onShutdown(async () => {
+      process.stderr.write('🧠 Stopping memory system...\n')
+      workerManager!.stop()
+    })
+  }
 
   shutdown.onShutdown(async () => {
     process.stderr.write('💾 Saving session...\n')
@@ -59,7 +102,21 @@ export async function runYolo(args: Args) {
   })
 
   const tools = await createToolRegistry()
-  const hookManager = createHookManager(config.hooks as any)
+
+  // Auto-inject Hook configuration if memory is enabled
+  let hookManager = createHookManager(config.hooks as any)
+  if (workerManager) {
+    const memoryHooks = createMemoryHooks(workerManager.getPort(), args.verbose)
+    // Merge existing hooks and memory hooks
+    const mergedHooks = { ...config.hooks, ...memoryHooks }
+    hookManager = createHookManager(mergedHooks as any)
+    logger.info('Memory hooks injected')
+
+    // Show tip for non-verbose mode
+    if (!args.verbose) {
+      process.stderr.write('💡 Tip: Use --verbose to see detailed memory recording logs\n')
+    }
+  }
 
   // Start embedded MCP server if configured
   if (config.mcp?.expose) {
@@ -125,6 +182,34 @@ export async function runYolo(args: Args) {
   const systemPrompt = await new SystemPromptBuilder(process.cwd(), memoryMgr, sessionStore, teamStoreMgr).build()
   logger.debug('System prompt built', { length: systemPrompt.length })
 
+  // Create memory recall function if worker is available
+  let memoryRecallFn: ((query: string, project?: string) => Promise<string>) | undefined
+  if (workerManager) {
+    memoryRecallFn = async (query: string, project?: string) => {
+      try {
+        const response = await fetch(`http://localhost:${workerManager.getPort()}/api/recall`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query,
+            project: project || config.project || 'code-agent',
+            limit: 10
+          })
+        })
+
+        if (!response.ok) {
+          throw new Error(`Recall API failed: ${response.statusText}`)
+        }
+
+        const data = await response.json()
+        return data.formattedText || ''
+      } catch (error: any) {
+        logger.warn('Memory recall failed', { error: error.message })
+        return ''
+      }
+    }
+  }
+
   const loop = new AgentLoop({
     model,
     tools,
@@ -135,7 +220,8 @@ export async function runYolo(args: Args) {
     systemPrompt,
     initialMessages,
     sessionManager,
-    hooks: hookManager
+    hooks: hookManager,
+    memoryRecallFn
   })
 
   tools.hooks = hookManager

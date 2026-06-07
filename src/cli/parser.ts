@@ -10,6 +10,7 @@ export interface Args {
   session?: string    // load specific session id and continue
   mcpServe?: boolean  // start as standalone MCP server
   port?: number       // port for MCP HTTP transport
+  withMemory?: boolean // enable memory system with Worker Service
   help?: boolean      // show help message
   version?: boolean   // show version
   invalidArgs?: string[]  // track invalid arguments
@@ -43,6 +44,8 @@ export function parseArgs(argv: string[]): Args {
       args.mcpServe = true
     } else if (arg === '--port' && argv[i + 1]) {
       args.port = parseInt(argv[++i], 10)
+    } else if (arg === '--with-memory') {
+      args.withMemory = true
     } else if (arg.startsWith('-')) {
       // Unknown flag
       args.invalidArgs!.push(arg)
