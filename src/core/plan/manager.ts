@@ -23,7 +23,7 @@ export class PlanManager {
       active: true,
       planFile,
       phase: 'exploration',
-      startTime: new Date()
+      startTime: new Date(),
     }
 
     const template = `# Implementation Plan

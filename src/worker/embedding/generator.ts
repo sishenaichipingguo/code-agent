@@ -1,7 +1,9 @@
 import { pipeline, env } from '@xenova/transformers'
 
 // 配置模型缓存目录
-env.cacheDir = process.env.TRANSFORMERS_CACHE || require('os').homedir() + '/.cache/transformers'
+env.cacheDir =
+  process.env.TRANSFORMERS_CACHE ||
+  require('os').homedir() + '/.cache/transformers'
 
 let embeddingPipeline: any = null
 
@@ -36,7 +38,7 @@ export async function generateEmbedding(text: string): Promise<number[]> {
 
   const output = await embeddingPipeline(truncated, {
     pooling: 'mean',
-    normalize: true
+    normalize: true,
   })
 
   // 转换为普通数组

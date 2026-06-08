@@ -29,7 +29,7 @@ export class SessionManager {
         contentSessionId: params.contentSessionId,
         project: params.project,
         platformSource: params.platformSource,
-        cwd: params.cwd
+        cwd: params.cwd,
       })
     }
 
@@ -41,7 +41,7 @@ export class SessionManager {
     this.db.createUserPrompt({
       sessionId: session.id,
       promptNumber,
-      content: params.prompt
+      content: params.prompt,
     })
 
     // 创建或获取 ActiveSession
@@ -53,7 +53,7 @@ export class SessionManager {
         project: params.project,
         cwd: params.cwd,
         messageQueue: [],
-        processing: false
+        processing: false,
       }
       this.activeSessions.set(params.contentSessionId, activeSession)
     }
@@ -62,7 +62,7 @@ export class SessionManager {
     activeSession.messageQueue.push({
       type: 'init',
       prompt: params.prompt,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     })
 
     // 异步处理队列
@@ -90,7 +90,7 @@ export class SessionManager {
       toolName: params.toolName,
       toolInput: params.toolInput,
       toolResponse: params.toolResponse,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     })
 
     // 异步处理队列
@@ -115,7 +115,7 @@ export class SessionManager {
     activeSession.messageQueue.push({
       type: 'summary',
       lastAssistantMessage: params.lastAssistantMessage,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     })
 
     // 异步处理队列
@@ -131,7 +131,10 @@ export class SessionManager {
     this.processingLock.delete(contentSessionId)
   }
 
-  getQueueStatus(contentSessionId: string): { queueLength: number; processing: boolean } {
+  getQueueStatus(contentSessionId: string): {
+    queueLength: number
+    processing: boolean
+  } {
     const activeSession = this.activeSessions.get(contentSessionId)
     if (!activeSession) {
       return { queueLength: 0, processing: false }
@@ -139,7 +142,7 @@ export class SessionManager {
 
     return {
       queueLength: activeSession.messageQueue.length,
-      processing: activeSession.processing
+      processing: activeSession.processing,
     }
   }
 
@@ -185,7 +188,7 @@ export class SessionManager {
       const response = await this.agent.processInit({
         userPrompt: message.prompt,
         project: session.project,
-        cwd: session.cwd
+        cwd: session.cwd,
       })
 
       const parsed = this.agent.parseObservation(response)
@@ -194,7 +197,11 @@ export class SessionManager {
           sessionId: session.sessionDbId,
           type: parsed.type,
           content: parsed.content,
-          metadata: { source: 'init', prompt: message.prompt, project: session.project }
+          metadata: {
+            source: 'init',
+            prompt: message.prompt,
+            project: session.project,
+          },
         })
 
         // 添加到 ChromaDB
@@ -218,7 +225,7 @@ export class SessionManager {
       const response = await this.agent.processContinuation({
         toolName: message.toolName,
         toolInput: message.toolInput,
-        toolResponse: message.toolResponse
+        toolResponse: message.toolResponse,
       })
 
       const parsed = this.agent.parseObservation(response)
@@ -231,8 +238,8 @@ export class SessionManager {
             source: 'tool_call',
             toolName: message.toolName,
             toolInput: message.toolInput,
-            project: session.project
-          }
+            project: session.project,
+          },
         })
 
         // 添加到 ChromaDB
@@ -244,7 +251,10 @@ export class SessionManager {
       }
     } catch (error: any) {
       // Log error but don't throw - memory system should not block main flow
-      console.error('Observation message processing error:', error.message || error)
+      console.error(
+        'Observation message processing error:',
+        error.message || error
+      )
     }
   }
 
@@ -254,14 +264,14 @@ export class SessionManager {
   ): Promise<void> {
     try {
       const response = await this.agent.processSummary({
-        lastAssistantMessage: message.lastAssistantMessage
+        lastAssistantMessage: message.lastAssistantMessage,
       })
 
       const parsed = this.agent.parseSummary(response)
       if (parsed) {
         this.db.createSummary({
           sessionId: session.sessionDbId,
-          content: parsed
+          content: parsed,
         })
       }
     } catch (error: any) {

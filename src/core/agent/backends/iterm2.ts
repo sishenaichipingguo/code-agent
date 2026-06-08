@@ -1,5 +1,11 @@
 import { execFileSync } from 'child_process'
-import { mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync } from 'fs'
+import {
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+  existsSync,
+  rmSync,
+} from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import type { SubAgentConfig } from '../types'
@@ -31,7 +37,9 @@ export class ITerm2Backend implements AgentBackend {
       SUBAGENT_MODEL: modelConfig.model,
       SUBAGENT_API_KEY: modelConfig.apiKey ?? '',
       SUBAGENT_BASE_URL: modelConfig.baseUrl ?? '',
-      SUBAGENT_MAX_TOKENS: String(modelConfig.maxTokens ?? config.maxTokens ?? 4096),
+      SUBAGENT_MAX_TOKENS: String(
+        modelConfig.maxTokens ?? config.maxTokens ?? 4096
+      ),
       MEMORY_NAMESPACE: `sub-${config.type}-${Date.now()}`,
     }
     const envStr = Object.entries(env)
@@ -83,10 +91,17 @@ export class ITerm2Backend implements AgentBackend {
             const raw = readFileSync(resultFile, 'utf-8').trim()
             const result = JSON.parse(raw)
             this.cleanup()
-            resolve(result.success ? result.result : (result.error ?? 'SubAgent failed'))
+            resolve(
+              result.success
+                ? result.result
+                : (result.error ?? 'SubAgent failed')
+            )
           } catch {
             this.cleanup()
-            resolve(readFileSync(resultFile, 'utf-8').trim() || 'SubAgent completed with no output')
+            resolve(
+              readFileSync(resultFile, 'utf-8').trim() ||
+                'SubAgent completed with no output'
+            )
           }
         } else {
           setTimeout(poll, 500)
@@ -102,7 +117,11 @@ export class ITerm2Backend implements AgentBackend {
 
   private cleanup() {
     if (this.tmpDir && existsSync(this.tmpDir)) {
-      try { rmSync(this.tmpDir, { recursive: true }) } catch { /* ignore */ }
+      try {
+        rmSync(this.tmpDir, { recursive: true })
+      } catch {
+        /* ignore */
+      }
       this.tmpDir = null
     }
   }

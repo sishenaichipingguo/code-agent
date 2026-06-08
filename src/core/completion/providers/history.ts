@@ -1,4 +1,8 @@
-import type { CompletionProvider, CompletionContext, Completion } from '../engine'
+import type {
+  CompletionProvider,
+  CompletionContext,
+  Completion,
+} from '../engine'
 import type { HistoryManager } from '@/core/history/manager'
 
 export class HistoryCompletionProvider implements CompletionProvider {
@@ -12,7 +16,7 @@ export class HistoryCompletionProvider implements CompletionProvider {
       display: h.command,
       description: this.formatTime(h.timestamp),
       type: 'history' as const,
-      score: 85
+      score: 85,
     }))
   }
 

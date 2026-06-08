@@ -1,5 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk'
-import type { ModelAdapter, UnifiedRequest, UnifiedResponse, StreamChunk, ModelCapabilities } from './types'
+import type {
+  ModelAdapter,
+  UnifiedRequest,
+  UnifiedResponse,
+  StreamChunk,
+  ModelCapabilities,
+} from './types'
 import { getTokenTracker } from '@/infra/token-tracker'
 import { getLogger } from '@/infra/logger'
 import { withRetry } from '@/infra/errors'
@@ -15,23 +21,26 @@ export class AnthropicAdapter implements ModelAdapter {
   capabilities: ModelCapabilities = {
     tools: true,
     streaming: true,
-    vision: true
+    vision: true,
   }
   private client: Anthropic
 
   constructor(private config: Config) {
     this.client = new Anthropic({
       apiKey: config.apiKey,
-      ...(config.baseUrl && { baseURL: config.baseUrl })
+      ...(config.baseUrl && { baseURL: config.baseUrl }),
     })
   }
 
-  async chat(request: UnifiedRequest, toolRegistry: any): Promise<UnifiedResponse> {
+  async chat(
+    request: UnifiedRequest,
+    toolRegistry: any
+  ): Promise<UnifiedResponse> {
     const logger = getLogger()
     const tracker = getTokenTracker()
 
     return withRetry(
-      async () => {
+      async (): Promise<UnifiedResponse> => {
         logger.debug('API call started')
 
         const tools = toolRegistry.toSchema()
@@ -44,43 +53,54 @@ export class AnthropicAdapter implements ModelAdapter {
             {
               type: 'text',
               text: request.system ?? this.defaultSystemPrompt(),
-              cache_control: { type: 'ephemeral' }
-            }
-          ] as any
+              cache_control: { type: 'ephemeral' },
+            },
+          ] as any,
         })
 
         const inputTokens = response.usage.input_tokens
         const outputTokens = response.usage.output_tokens
-        const cacheCreation = (response.usage as any).cache_creation_input_tokens ?? 0
+        const cacheCreation =
+          (response.usage as any).cache_creation_input_tokens ?? 0
         const cacheRead = (response.usage as any).cache_read_input_tokens ?? 0
 
-        tracker.track(this.config.model, inputTokens, outputTokens, cacheCreation, cacheRead)
+        tracker.track(
+          this.config.model,
+          inputTokens,
+          outputTokens,
+          cacheCreation,
+          cacheRead
+        )
 
         logger.debug('API call completed', {
           tokens: inputTokens + outputTokens,
           cacheCreation,
-          cacheRead
+          cacheRead,
         })
 
         // Handle tool use first (stop_reason is authoritative)
-        const toolCalls = response.content.filter((c: any) => c.type === 'tool_use')
+        const toolCalls = response.content.filter(
+          (c: any) => c.type === 'tool_use'
+        )
         if (response.stop_reason === 'tool_use' && toolCalls.length > 0) {
           return {
             type: 'tool_use',
             tools: toolCalls,
             rawContent: response.content,
-            inputTokens
+            inputTokens,
           }
         }
 
         // Handle text response
-        const textContent = response.content.find((c: any) => c.type === 'text')
+        const textContent = response.content.find(
+          (c): c is Anthropic.Messages.TextBlock => c.type === 'text'
+        )
         if (textContent) {
           return {
             type: 'text',
             content: textContent.text,
             rawContent: response.content,
-            inputTokens
+            inputTokens,
           }
         }
 
@@ -88,16 +108,16 @@ export class AnthropicAdapter implements ModelAdapter {
           type: 'text',
           content: 'No response',
           rawContent: response.content,
-          inputTokens
+          inputTokens,
         }
       },
       {
         maxRetries: 3,
         onRetry: (attempt, error) => {
           logger.warn(`API call failed, retrying (${attempt}/3)`, {
-            error: error.message
+            error: error.message,
           })
-        }
+        },
       }
     ).catch((error: any) => {
       const { AgentError, ErrorCode } = require('@/infra/errors')
@@ -113,7 +133,7 @@ export class AnthropicAdapter implements ModelAdapter {
 
       return {
         type: 'error',
-        error: agentError.toUserMessage()
+        error: agentError.toUserMessage(),
       }
     })
   }
@@ -124,7 +144,10 @@ Current directory: ${process.cwd()}
 Available tools: bash, read, write, edit, glob, grep, ls, cp, mv, rm`
   }
 
-  async *chatStream(request: UnifiedRequest, toolRegistry: any): AsyncGenerator<StreamChunk> {
+  async *chatStream(
+    request: UnifiedRequest,
+    toolRegistry: any
+  ): AsyncGenerator<StreamChunk> {
     const logger = getLogger()
     const tracker = getTokenTracker()
 
@@ -141,9 +164,9 @@ Available tools: bash, read, write, edit, glob, grep, ls, cp, mv, rm`
           {
             type: 'text',
             text: request.system ?? this.defaultSystemPrompt(),
-            cache_control: { type: 'ephemeral' }
-          }
-        ] as any
+            cache_control: { type: 'ephemeral' },
+          },
+        ] as any,
       })
 
       let inputTokens = 0
@@ -158,7 +181,8 @@ Available tools: bash, read, write, edit, glob, grep, ls, cp, mv, rm`
       for await (const event of stream) {
         if (event.type === 'message_start') {
           inputTokens = event.message.usage.input_tokens
-          cacheCreation = (event.message.usage as any).cache_creation_input_tokens ?? 0
+          cacheCreation =
+            (event.message.usage as any).cache_creation_input_tokens ?? 0
           cacheRead = (event.message.usage as any).cache_read_input_tokens ?? 0
         }
 
@@ -166,7 +190,11 @@ Available tools: bash, read, write, edit, glob, grep, ls, cp, mv, rm`
           if (event.content_block.type === 'tool_use') {
             toolBlocks.set(event.index, { ...event.content_block, input: {} })
             toolInputBuffers.set(event.index, '')
-            yield { type: 'tool_use', tool: toolBlocks.get(event.index), toolIndex: event.index }
+            yield {
+              type: 'tool_use',
+              tool: toolBlocks.get(event.index),
+              toolIndex: event.index,
+            }
           }
         }
 
@@ -174,9 +202,15 @@ Available tools: bash, read, write, edit, glob, grep, ls, cp, mv, rm`
           if (event.delta.type === 'text_delta') {
             yield { type: 'text', content: event.delta.text }
           } else if (event.delta.type === 'input_json_delta') {
-            const buf = (toolInputBuffers.get(event.index) ?? '') + event.delta.partial_json
+            const buf =
+              (toolInputBuffers.get(event.index) ?? '') +
+              event.delta.partial_json
             toolInputBuffers.set(event.index, buf)
-            yield { type: 'tool_input_delta', toolIndex: event.index, inputDelta: event.delta.partial_json }
+            yield {
+              type: 'tool_input_delta',
+              toolIndex: event.index,
+              inputDelta: event.delta.partial_json,
+            }
           }
         }
 
@@ -199,11 +233,17 @@ Available tools: bash, read, write, edit, glob, grep, ls, cp, mv, rm`
         }
 
         if (event.type === 'message_stop') {
-          tracker.track(this.config.model, inputTokens, outputTokens, cacheCreation, cacheRead)
+          tracker.track(
+            this.config.model,
+            inputTokens,
+            outputTokens,
+            cacheCreation,
+            cacheRead
+          )
           logger.debug('Streaming API call completed', {
             tokens: inputTokens + outputTokens,
             cacheCreation,
-            cacheRead
+            cacheRead,
           })
           yield { type: 'done', inputTokens }
         }
@@ -214,7 +254,8 @@ Available tools: bash, read, write, edit, glob, grep, ls, cp, mv, rm`
       const httpStatus = error?.status ?? error?.statusCode
       let errorCode = ErrorCode.API_ERROR
       if (httpStatus === 429) errorCode = ErrorCode.RATE_LIMIT
-      else if (error.message?.includes('network')) errorCode = ErrorCode.NETWORK_ERROR
+      else if (error.message?.includes('network'))
+        errorCode = ErrorCode.NETWORK_ERROR
       throw new AgentError(errorCode, error.message, {}, true)
     }
   }

@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach } from 'bun:test'
-import { TokenTracker, initTokenTracker, getTokenTracker } from './token-tracker'
+import {
+  TokenTracker,
+  initTokenTracker,
+  getTokenTracker,
+} from './token-tracker'
 
 describe('TokenTracker', () => {
   let tracker: TokenTracker

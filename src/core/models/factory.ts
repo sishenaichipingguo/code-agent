@@ -10,13 +10,13 @@ export class ModelFactory {
         return new AnthropicAdapter({
           apiKey: config.apiKey || process.env.ANTHROPIC_API_KEY || '',
           model: config.model,
-          baseUrl: config.baseUrl || process.env.ANTHROPIC_BASE_URL
+          baseUrl: config.baseUrl || process.env.ANTHROPIC_BASE_URL,
         })
 
       case 'ollama':
         return new OllamaAdapter({
           baseUrl: config.baseUrl || 'http://localhost:11434',
-          model: config.model
+          model: config.model,
         })
 
       case 'openai':

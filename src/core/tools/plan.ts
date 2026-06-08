@@ -18,9 +18,9 @@ export class EnterPlanModeTool implements Tool {
   inputSchema = {
     type: 'object',
     properties: {
-      sessionId: { type: 'string' }
+      sessionId: { type: 'string' },
     },
-    required: ['sessionId']
+    required: ['sessionId'],
   }
 
   isConcurrencySafe = () => false

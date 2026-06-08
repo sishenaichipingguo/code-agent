@@ -1,4 +1,10 @@
-import type { ModelAdapter, UnifiedRequest, UnifiedResponse, StreamChunk, ModelCapabilities } from './types'
+import type {
+  ModelAdapter,
+  UnifiedRequest,
+  UnifiedResponse,
+  StreamChunk,
+  ModelCapabilities,
+} from './types'
 import { getLogger } from '@/infra/logger'
 
 interface Config {
@@ -11,12 +17,15 @@ export class OllamaAdapter implements ModelAdapter {
   capabilities: ModelCapabilities = {
     tools: true,
     streaming: true,
-    vision: false
+    vision: false,
   }
 
   constructor(private config: Config) {}
 
-  async chat(request: UnifiedRequest, toolRegistry: any): Promise<UnifiedResponse> {
+  async chat(
+    request: UnifiedRequest,
+    toolRegistry: any
+  ): Promise<UnifiedResponse> {
     const logger = getLogger()
 
     try {
@@ -25,38 +34,49 @@ export class OllamaAdapter implements ModelAdapter {
         model: this.config.model,
         messages: [
           { role: 'system', content: this.buildSystemPrompt() },
-          ...this.convertMessages(request.messages)
+          ...this.convertMessages(request.messages),
         ],
         stream: false,
-        options: { num_ctx: 32768 }
+        options: { num_ctx: 32768 },
       }
       if (tools.length > 0) body.tools = tools
 
       const response = await fetch(`${this.config.baseUrl}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
       })
 
       if (!response.ok) {
         const errorText = await response.text()
-        logger.error('Ollama request failed', { status: response.status, body: errorText })
+        logger.error('Ollama request failed', {
+          status: response.status,
+          body: errorText,
+        })
         throw new Error(`Ollama: ${response.statusText} - ${errorText}`)
       }
 
-      const data = await response.json()
+      const data = (await response.json()) as {
+        message?: {
+          content?: string
+          tool_calls?: Array<{
+            function: { name: string; arguments: string | object }
+          }>
+        }
+      }
       const msg = data.message
 
-      if (msg?.tool_calls?.length > 0) {
+      if (msg?.tool_calls?.length) {
         return {
           type: 'tool_use',
-          tools: msg.tool_calls.map((tc: any, i: number) => ({
+          tools: msg.tool_calls.map((tc, i: number) => ({
             id: `tool_${i}`,
             name: tc.function.name,
-            input: typeof tc.function.arguments === 'string'
-              ? JSON.parse(tc.function.arguments)
-              : tc.function.arguments
-          }))
+            input:
+              typeof tc.function.arguments === 'string'
+                ? JSON.parse(tc.function.arguments)
+                : tc.function.arguments,
+          })),
         }
       }
 
@@ -67,7 +87,10 @@ export class OllamaAdapter implements ModelAdapter {
     }
   }
 
-  async *chatStream(request: UnifiedRequest, toolRegistry: any): AsyncGenerator<StreamChunk> {
+  async *chatStream(
+    request: UnifiedRequest,
+    toolRegistry: any
+  ): AsyncGenerator<StreamChunk> {
     const logger = getLogger()
 
     try {
@@ -76,22 +99,25 @@ export class OllamaAdapter implements ModelAdapter {
         model: this.config.model,
         messages: [
           { role: 'system', content: this.buildSystemPrompt() },
-          ...this.convertMessages(request.messages)
+          ...this.convertMessages(request.messages),
         ],
         stream: true,
-        options: { num_ctx: 32768 }
+        options: { num_ctx: 32768 },
       }
       if (tools.length > 0) body.tools = tools
 
       const response = await fetch(`${this.config.baseUrl}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
       })
 
       if (!response.ok) {
         const errorText = await response.text()
-        logger.error('Ollama stream request failed', { status: response.status, body: errorText })
+        logger.error('Ollama stream request failed', {
+          status: response.status,
+          body: errorText,
+        })
         throw new Error(`Ollama: ${response.statusText} - ${errorText}`)
       }
 
@@ -122,10 +148,11 @@ export class OllamaAdapter implements ModelAdapter {
                 tool: {
                   id: `tool_${i}`,
                   name: tc.function.name,
-                  input: typeof tc.function.arguments === 'string'
-                    ? JSON.parse(tc.function.arguments)
-                    : tc.function.arguments
-                }
+                  input:
+                    typeof tc.function.arguments === 'string'
+                      ? JSON.parse(tc.function.arguments)
+                      : tc.function.arguments,
+                },
               }
             }
           } else if (msg?.content) {
@@ -151,8 +178,8 @@ export class OllamaAdapter implements ModelAdapter {
       function: {
         name: t.name,
         description: t.description,
-        parameters: t.input_schema
-      }
+        parameters: t.input_schema,
+      },
     }))
   }
 
@@ -163,29 +190,44 @@ Available tools: bash, read, write, edit, glob, grep, ls, cp, mv, rm`
   }
 
   private convertMessages(messages: any[]) {
-    return messages.map(m => {
-      // tool_result content blocks → Ollama role: 'tool' messages
-      if (m.role === 'user' && Array.isArray(m.content)) {
-        const toolResults = m.content.filter((c: any) => c.type === 'tool_result')
-        if (toolResults.length > 0) {
-          return toolResults.map((r: any) => ({
-            role: 'tool',
-            content: typeof r.content === 'string' ? r.content : JSON.stringify(r.content)
-          }))
+    return messages
+      .map(m => {
+        // tool_result content blocks → Ollama role: 'tool' messages
+        if (m.role === 'user' && Array.isArray(m.content)) {
+          const toolResults = m.content.filter(
+            (c: any) => c.type === 'tool_result'
+          )
+          if (toolResults.length > 0) {
+            return toolResults.map((r: any) => ({
+              role: 'tool',
+              content:
+                typeof r.content === 'string'
+                  ? r.content
+                  : JSON.stringify(r.content),
+            }))
+          }
         }
-      }
-      // assistant messages with content blocks (rawContent format)
-      if (m.role === 'assistant' && Array.isArray(m.content)) {
-        const textBlock = m.content.find((c: any) => c.type === 'text')
+        // assistant messages with content blocks (rawContent format)
+        if (m.role === 'assistant' && Array.isArray(m.content)) {
+          const textBlock = m.content.find((c: any) => c.type === 'text')
+          return {
+            role: 'assistant',
+            content: textBlock?.text ?? '',
+          }
+        }
         return {
-          role: 'assistant',
-          content: textBlock?.text ?? ''
+          role:
+            m.role === 'system'
+              ? 'system'
+              : m.role === 'assistant'
+                ? 'assistant'
+                : 'user',
+          content:
+            typeof m.content === 'string'
+              ? m.content
+              : JSON.stringify(m.content),
         }
-      }
-      return {
-        role: m.role === 'system' ? 'system' : m.role === 'assistant' ? 'assistant' : 'user',
-        content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
-      }
-    }).flat()
+      })
+      .flat()
   }
 }

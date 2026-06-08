@@ -27,10 +27,10 @@ export class WorkerManager {
     }
 
     return new Promise((resolve, reject) => {
-      const env = {
+      const env: Record<string, string | undefined> = {
         ...process.env,
         WORKER_PORT: String(this.port),
-        ANTHROPIC_API_KEY: this.options.apiKey
+        ANTHROPIC_API_KEY: this.options.apiKey,
       }
 
       if (this.options.dataDir) {
@@ -43,7 +43,7 @@ export class WorkerManager {
       this.workerProcess = spawn('bun', ['run', workerPath], {
         env,
         stdio: ['ignore', 'pipe', 'pipe'],
-        detached: false // Child process exits when parent exits
+        detached: false, // Child process exits when parent exits
       })
 
       // Capture stdout
@@ -54,7 +54,9 @@ export class WorkerManager {
         if (output.includes('Worker Service running')) {
           this.isReady = true
           // Always show startup success message (even in non-verbose mode)
-          process.stderr.write(`✅ Memory system ready (recording to ~/.claude-mem/)\n`)
+          process.stderr.write(
+            `✅ Memory system ready (recording to ~/.claude-mem/)\n`
+          )
           this.options.onReady?.()
           resolve()
         }
@@ -74,7 +76,7 @@ export class WorkerManager {
       })
 
       // Handle process errors
-      this.workerProcess.on('error', (error) => {
+      this.workerProcess.on('error', error => {
         this.options.onError?.(error)
         reject(error)
       })

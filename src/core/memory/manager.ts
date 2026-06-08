@@ -1,11 +1,23 @@
-import type { Memory, MemoryCreateInput, MemoryUpdateInput, MemoryType } from './types'
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, unlinkSync } from 'fs'
+import type {
+  Memory,
+  MemoryCreateInput,
+  MemoryUpdateInput,
+  MemoryType,
+} from './types'
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+  readdirSync,
+  unlinkSync,
+} from 'fs'
 import { join } from 'path'
 
 export class MemoryManager {
-  private memoryDir: string        // write target (may be namespaced)
-  private rootMemoryDir: string    // always the root .claude/memory
-  private indexPath: string        // always root MEMORY.md
+  private memoryDir: string // write target (may be namespaced)
+  private rootMemoryDir: string // always the root .claude/memory
+  private indexPath: string // always root MEMORY.md
 
   constructor(projectRoot: string) {
     this.rootMemoryDir = join(projectRoot, '.claude', 'memory')
@@ -22,7 +34,10 @@ export class MemoryManager {
       mkdirSync(this.rootMemoryDir, { recursive: true })
     }
     if (!existsSync(this.indexPath)) {
-      writeFileSync(this.indexPath, '# Memory Index\n\n## User\n\n## Feedback\n\n## Project\n\n## Reference\n')
+      writeFileSync(
+        this.indexPath,
+        '# Memory Index\n\n## User\n\n## Feedback\n\n## Project\n\n## Reference\n'
+      )
     }
     if (this.memoryDir !== this.rootMemoryDir && !existsSync(this.memoryDir)) {
       mkdirSync(this.memoryDir, { recursive: true })
@@ -53,14 +68,15 @@ ${input.content}`
       content: input.content,
       created: new Date(),
       updated: new Date(),
-      filePath
+      filePath,
     }
   }
 
   update(input: MemoryUpdateInput): Memory {
     const fileName = `${input.type}_${input.name.replace(/\s+/g, '_')}.md`
     const filePath = join(this.memoryDir, fileName)
-    if (!existsSync(filePath)) throw new Error(`Memory not found: ${input.name}`)
+    if (!existsSync(filePath))
+      throw new Error(`Memory not found: ${input.name}`)
 
     const frontmatter = `---
 name: ${input.name}
@@ -82,12 +98,14 @@ ${input.content}`
       content: input.content,
       created: new Date(),
       updated: new Date(),
-      filePath
+      filePath,
     }
   }
 
   delete(name: string): void {
-    const files = readdirSync(this.memoryDir).filter(f => f.endsWith('.md') && f !== 'MEMORY.md')
+    const files = readdirSync(this.memoryDir).filter(
+      f => f.endsWith('.md') && f !== 'MEMORY.md'
+    )
     const target = files.find(f => {
       const raw = readFileSync(join(this.memoryDir, f), 'utf-8')
       return raw.match(/^name: (.+)$/m)?.[1]?.trim() === name
@@ -100,28 +118,51 @@ ${input.content}`
   private readCreatedDate(filePath: string): string {
     try {
       const raw = readFileSync(filePath, 'utf-8')
-      return raw.match(/^created: (.+)$/m)?.[1]?.trim() ?? new Date().toISOString()
+      return (
+        raw.match(/^created: (.+)$/m)?.[1]?.trim() ?? new Date().toISOString()
+      )
     } catch {
       return new Date().toISOString()
     }
   }
 
-  private replaceIndexEntry(type: MemoryType, name: string, fileName: string, description: string) {
+  private replaceIndexEntry(
+    type: MemoryType,
+    name: string,
+    fileName: string,
+    description: string
+  ) {
     let index = readFileSync(this.indexPath, 'utf-8')
-    index = index.split('\n').filter(l => !l.includes(`[${name}]`)).join('\n')
+    index = index
+      .split('\n')
+      .filter(l => !l.includes(`[${name}]`))
+      .join('\n')
     writeFileSync(this.indexPath, index)
     this.updateIndex(type, name, fileName, description)
   }
 
   private removeIndexEntry(name: string) {
     const index = readFileSync(this.indexPath, 'utf-8')
-    const updated = index.split('\n').filter(l => !l.includes(`[${name}]`)).join('\n')
+    const updated = index
+      .split('\n')
+      .filter(l => !l.includes(`[${name}]`))
+      .join('\n')
     writeFileSync(this.indexPath, updated)
   }
 
-  private updateIndex(type: MemoryType, name: string, fileName: string, description: string) {
-    let index = readFileSync(this.indexPath, 'utf-8')
-    const sectionMap = { user: '## User', feedback: '## Feedback', project: '## Project', reference: '## Reference' }
+  private updateIndex(
+    type: MemoryType,
+    name: string,
+    fileName: string,
+    description: string
+  ) {
+    const index = readFileSync(this.indexPath, 'utf-8')
+    const sectionMap = {
+      user: '## User',
+      feedback: '## Feedback',
+      project: '## Project',
+      reference: '## Reference',
+    }
     const section = sectionMap[type]
     const entry = `- [${name}](${fileName}) — ${description}`
 

@@ -14,7 +14,7 @@ class MetricsCollector {
       name,
       value,
       tags,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     })
   }
 

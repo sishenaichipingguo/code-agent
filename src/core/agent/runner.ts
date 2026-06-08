@@ -16,12 +16,16 @@ async function main() {
   const systemPrompt = process.env.SUBAGENT_SYSTEM ?? ''
   const provider = (process.env.SUBAGENT_PROVIDER ?? 'anthropic') as any
   const model = process.env.SUBAGENT_MODEL ?? 'claude-sonnet-4-6'
-  const apiKey = process.env.SUBAGENT_API_KEY ?? process.env.ANTHROPIC_API_KEY ?? ''
+  const apiKey =
+    process.env.SUBAGENT_API_KEY ?? process.env.ANTHROPIC_API_KEY ?? ''
   const baseUrl = process.env.SUBAGENT_BASE_URL
   const maxTokens = parseInt(process.env.SUBAGENT_MAX_TOKENS ?? '4096', 10)
 
   // All diagnostic output goes to stderr so stdout stays clean for the JSON result
-  const logger = initLogger({ level: 'info', file: `.agent/logs/subagent-${type}.log` })
+  const logger = initLogger({
+    level: 'info',
+    file: `.agent/logs/subagent-${type}.log`,
+  })
   initTokenTracker()
   initMetrics()
   initMemoryManager(process.cwd())
@@ -29,7 +33,12 @@ async function main() {
   try {
     logger.info('SubAgent starting', { type, provider, model })
 
-    const modelAdapter = ModelFactory.create({ type: provider, apiKey, baseUrl, model })
+    const modelAdapter = ModelFactory.create({
+      type: provider,
+      apiKey,
+      baseUrl,
+      model,
+    })
 
     const fullRegistry = await createToolRegistry()
     const restrictedRegistry = fullRegistry.createRestricted(allowedTools)
@@ -39,25 +48,29 @@ async function main() {
       tools: restrictedRegistry,
       permissionContext: enterAutoMode(buildPermissionContext('default')),
       logger,
-      streaming: false
+      streaming: false,
     })
 
     const result = await loop.run(prompt)
 
     // Only the final JSON goes to stdout
-    process.stdout.write(JSON.stringify({
-      success: true,
-      result,
-      metadata: { type, model, toolsUsed: allowedTools }
-    }) + '\n')
+    process.stdout.write(
+      JSON.stringify({
+        success: true,
+        result,
+        metadata: { type, model, toolsUsed: allowedTools },
+      }) + '\n'
+    )
 
     process.exit(0)
   } catch (error: any) {
     logger.error('SubAgent failed', { error: error.message })
-    process.stdout.write(JSON.stringify({
-      success: false,
-      error: error.message
-    }) + '\n')
+    process.stdout.write(
+      JSON.stringify({
+        success: false,
+        error: error.message,
+      }) + '\n'
+    )
     process.exit(1)
   }
 }

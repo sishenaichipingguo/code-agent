@@ -26,7 +26,8 @@ export class SystemPromptBuilder {
     // 3. Previous session summary (if available)
     if (this.sessionStore) {
       const summary = this.sessionStore.load()
-      if (summary.trim()) sections.push(`## Previous Session\n${summary.trim()}`)
+      if (summary.trim())
+        sections.push(`## Previous Session\n${summary.trim()}`)
     }
 
     // 4. Memory index (if available and non-empty)
@@ -76,22 +77,35 @@ export class SystemPromptBuilder {
       `- OS: ${os}`,
       `- Shell: ${shell}`,
       `- Working directory: ${this.cwd}`,
-      `- Date: ${new Date().toISOString().split('T')[0]}`
+      `- Date: ${new Date().toISOString().split('T')[0]}`,
     ]
 
     // Git info — best effort, skip if not a git repo
     try {
       const branch = execSync('git branch --show-current', {
-        cwd: this.cwd, stdio: ['pipe', 'pipe', 'pipe'], timeout: 3000
-      }).toString().trim()
+        cwd: this.cwd,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        timeout: 3000,
+      })
+        .toString()
+        .trim()
 
       const status = execSync('git status --short', {
-        cwd: this.cwd, stdio: ['pipe', 'pipe', 'pipe'], timeout: 3000
-      }).toString().trim()
+        cwd: this.cwd,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        timeout: 3000,
+      })
+        .toString()
+        .trim()
 
       lines.push(`- Git branch: ${branch || '(detached HEAD)'}`)
       if (status) {
-        lines.push(`- Git status (unstaged/staged changes):\n${status.split('\n').map(l => `  ${l}`).join('\n')}`)
+        lines.push(
+          `- Git status (unstaged/staged changes):\n${status
+            .split('\n')
+            .map(l => `  ${l}`)
+            .join('\n')}`
+        )
       } else {
         lines.push(`- Git status: clean`)
       }

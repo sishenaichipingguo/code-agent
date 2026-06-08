@@ -7,12 +7,15 @@ export const RmTool = createTool({
   inputSchema: {
     type: 'object',
     properties: { path: { type: 'string' } },
-    required: ['path']
+    required: ['path'],
   },
   isDestructive: () => true,
   checkPermissions: (input: unknown) => {
     const inp = input as { path?: string }
-    return { type: 'ask' as const, description: `Permanently delete: ${inp.path}` }
+    return {
+      type: 'ask' as const,
+      description: `Permanently delete: ${inp.path}`,
+    }
   },
   preparePermissionMatcher: (input: unknown) => {
     const inp = input as { path?: string }
@@ -22,5 +25,5 @@ export const RmTool = createTool({
   async execute(input: { path: string }): Promise<string> {
     await unlink(input.path)
     return `Deleted ${input.path}`
-  }
+  },
 })

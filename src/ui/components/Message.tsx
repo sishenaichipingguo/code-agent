@@ -14,8 +14,12 @@ export function Message({ role, content }: MessageProps) {
   return (
     <Box flexDirection="column" marginBottom={1}>
       <Box>
-        <Text color={color} bold>{prefix} </Text>
-        <Text color={color} bold>{label}</Text>
+        <Text color={color} bold>
+          {prefix}{' '}
+        </Text>
+        <Text color={color} bold>
+          {label}
+        </Text>
       </Box>
       <Box paddingLeft={2}>
         <Text>{content}</Text>

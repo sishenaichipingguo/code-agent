@@ -56,7 +56,7 @@ export async function runSafe(args: Args) {
     type: config.provider || 'anthropic',
     baseUrl: config.baseUrl,
     apiKey: config.apiKey,
-    model: args.model || config.model
+    model: args.model || config.model,
   })
 
   // Create session
@@ -68,12 +68,12 @@ export async function runSafe(args: Args) {
     permissionContext: buildPermissionContext('default'),
     logger,
     streaming: true,
-    hooks: hookManager
+    hooks: hookManager,
   })
 
   tools.hooks = hookManager
 
-  const message = args.message || await promptUser()
+  const message = args.message || (await promptUser())
   await loop.run(message)
 
   // Save session
@@ -87,7 +87,10 @@ export async function runSafe(args: Args) {
 async function promptUser(): Promise<string> {
   process.stderr.write('Enter your request:\n')
   const decoder = new TextDecoder()
-  const buffer = new Uint8Array(1024)
-  const n = await Bun.stdin.read(buffer)
-  return decoder.decode(buffer.slice(0, n)).trim()
+  let input = ''
+  for await (const chunk of Bun.stdin.stream()) {
+    input += decoder.decode(chunk as Uint8Array)
+    if (input.includes('\n')) break
+  }
+  return input.trim()
 }

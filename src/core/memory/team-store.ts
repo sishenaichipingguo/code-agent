@@ -40,12 +40,25 @@ ${input.content}`
   private ensureDir() {
     if (!existsSync(this.teamDir)) mkdirSync(this.teamDir, { recursive: true })
     if (!existsSync(this.indexPath)) {
-      writeFileSync(this.indexPath, '# Team Memory Index\n\n## User\n\n## Feedback\n\n## Project\n\n## Reference\n')
+      writeFileSync(
+        this.indexPath,
+        '# Team Memory Index\n\n## User\n\n## Feedback\n\n## Project\n\n## Reference\n'
+      )
     }
   }
 
-  private updateIndex(type: MemoryType, name: string, fileName: string, description: string) {
-    const sectionMap = { user: '## User', feedback: '## Feedback', project: '## Project', reference: '## Reference' }
+  private updateIndex(
+    type: MemoryType,
+    name: string,
+    fileName: string,
+    description: string
+  ) {
+    const sectionMap = {
+      user: '## User',
+      feedback: '## Feedback',
+      project: '## Project',
+      reference: '## Reference',
+    }
     const section = sectionMap[type]
     const entry = `- [${name}](${fileName}) — ${description}`
     const lines = this.loadIndexRaw().split('\n')

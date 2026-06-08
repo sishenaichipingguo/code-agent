@@ -61,20 +61,28 @@ export async function withRetry<T>(
   const {
     maxRetries = 3,
     backoff = 1000,
-    retryableErrors = [ErrorCode.NETWORK_ERROR, ErrorCode.RATE_LIMIT, ErrorCode.API_ERROR],
-    onRetry
+    retryableErrors = [
+      ErrorCode.NETWORK_ERROR,
+      ErrorCode.RATE_LIMIT,
+      ErrorCode.API_ERROR,
+    ],
+    onRetry,
   } = options
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       return await fn()
     } catch (error) {
-      const isAgentRetryable = error instanceof AgentError &&
-        retryableErrors.includes(error.code)
+      const isAgentRetryable =
+        error instanceof AgentError && retryableErrors.includes(error.code)
       const httpStatus = (error as any)?.status ?? (error as any)?.statusCode
-      const isHttpRetryable = httpStatus === 503 || httpStatus === 502 || httpStatus === 429
+      const isHttpRetryable =
+        httpStatus === 503 || httpStatus === 502 || httpStatus === 429
 
-      if ((!isAgentRetryable && !isHttpRetryable) || attempt === maxRetries - 1) {
+      if (
+        (!isAgentRetryable && !isHttpRetryable) ||
+        attempt === maxRetries - 1
+      ) {
         throw error
       }
 

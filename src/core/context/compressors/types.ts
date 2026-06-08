@@ -11,5 +11,9 @@ export interface CompressorResult {
 }
 
 export interface Compressor {
-  run(messages: RawMessage[], model: import('@/core/models/adapter').ModelAdapter, modelName: string): Promise<CompressorResult>
+  run(
+    messages: RawMessage[],
+    model: import('@/core/models/adapter').ModelAdapter,
+    modelName: string
+  ): Promise<CompressorResult>
 }

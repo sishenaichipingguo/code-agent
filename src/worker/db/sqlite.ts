@@ -100,7 +100,7 @@ export class SQLiteManager {
       cwd: data.cwd,
       createdAt: now,
       updatedAt: now,
-      promptCount: 0
+      promptCount: 0,
     }
   }
 
@@ -122,7 +122,7 @@ export class SQLiteManager {
       cwd: row.cwd,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
-      promptCount: row.prompt_count
+      promptCount: row.prompt_count,
     }
   }
 
@@ -163,7 +163,7 @@ export class SQLiteManager {
       type: data.type as any,
       content: data.content,
       metadata: data.metadata,
-      createdAt: now
+      createdAt: now,
     }
   }
 
@@ -182,7 +182,7 @@ export class SQLiteManager {
       type: row.type,
       content: row.content,
       metadata: JSON.parse(row.metadata),
-      createdAt: row.created_at
+      createdAt: row.created_at,
     }))
   }
 
@@ -247,7 +247,7 @@ export class SQLiteManager {
       type: row.type,
       content: row.content,
       metadata: JSON.parse(row.metadata),
-      createdAt: row.created_at
+      createdAt: row.created_at,
     }))
 
     return { observations, total }
@@ -255,10 +255,7 @@ export class SQLiteManager {
 
   // ============ Summaries ============
 
-  createSummary(data: {
-    sessionId: number
-    content: string
-  }): Summary {
+  createSummary(data: { sessionId: number; content: string }): Summary {
     const now = Date.now()
     const stmt = this.db.prepare(`
       INSERT INTO summaries (session_id, content, created_at)
@@ -271,7 +268,7 @@ export class SQLiteManager {
       id: result.lastInsertRowid as number,
       sessionId: data.sessionId,
       content: data.content,
-      createdAt: now
+      createdAt: now,
     }
   }
 
@@ -288,7 +285,7 @@ export class SQLiteManager {
       id: row.id,
       sessionId: row.session_id,
       content: row.content,
-      createdAt: row.created_at
+      createdAt: row.created_at,
     }))
   }
 
@@ -305,14 +302,19 @@ export class SQLiteManager {
       VALUES (?, ?, ?, ?)
     `)
 
-    const result = stmt.run(data.sessionId, data.promptNumber, data.content, now)
+    const result = stmt.run(
+      data.sessionId,
+      data.promptNumber,
+      data.content,
+      now
+    )
 
     return {
       id: result.lastInsertRowid as number,
       sessionId: data.sessionId,
       promptNumber: data.promptNumber,
       content: data.content,
-      createdAt: now
+      createdAt: now,
     }
   }
 

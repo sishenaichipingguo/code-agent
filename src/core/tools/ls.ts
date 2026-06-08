@@ -8,9 +8,12 @@ export const LsTool = createTool({
   inputSchema: {
     type: 'object',
     properties: {
-      path: { type: 'string', description: 'Directory path (default: current)' },
-      detailed: { type: 'boolean', description: 'Show detailed info' }
-    }
+      path: {
+        type: 'string',
+        description: 'Directory path (default: current)',
+      },
+      detailed: { type: 'boolean', description: 'Show detailed info' },
+    },
   },
   isConcurrencySafe: () => true,
   isReadOnly: () => true,
@@ -24,7 +27,7 @@ export const LsTool = createTool({
     }
 
     const details = await Promise.all(
-      files.map(async (file) => {
+      files.map(async file => {
         const filePath = join(dirPath, file)
         const stats = await stat(filePath)
         const type = stats.isDirectory() ? 'd' : 'f'
@@ -34,5 +37,5 @@ export const LsTool = createTool({
     )
 
     return details.join('\n')
-  }
+  },
 })

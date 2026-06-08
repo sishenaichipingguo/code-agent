@@ -21,9 +21,9 @@ export class TaskCreateTool implements Tool {
       subject: { type: 'string' },
       description: { type: 'string' },
       activeForm: { type: 'string' },
-      metadata: { type: 'object' }
+      metadata: { type: 'object' },
     },
-    required: ['subject', 'description']
+    required: ['subject', 'description'],
   }
 
   isConcurrencySafe = () => false
@@ -48,13 +48,16 @@ export class TaskUpdateTool implements Tool {
       subject: { type: 'string' },
       description: { type: 'string' },
       activeForm: { type: 'string' },
-      status: { type: 'string', enum: ['pending', 'in_progress', 'completed', 'deleted'] },
+      status: {
+        type: 'string',
+        enum: ['pending', 'in_progress', 'completed', 'deleted'],
+      },
       owner: { type: 'string' },
       addBlocks: { type: 'array', items: { type: 'string' } },
       addBlockedBy: { type: 'array', items: { type: 'string' } },
-      metadata: { type: 'object' }
+      metadata: { type: 'object' },
     },
-    required: ['taskId']
+    required: ['taskId'],
   }
 
   isConcurrencySafe = () => false
@@ -84,9 +87,12 @@ export class TaskListTool implements Tool {
     const tasks = getTaskManager().list()
     if (tasks.length === 0) return 'No tasks found'
 
-    return tasks.map(t =>
-      `#${t.id}. [${t.status}] ${t.subject}${t.blockedBy.length ? ' (blocked)' : ''}`
-    ).join('\n')
+    return tasks
+      .map(
+        t =>
+          `#${t.id}. [${t.status}] ${t.subject}${t.blockedBy.length ? ' (blocked)' : ''}`
+      )
+      .join('\n')
   }
 }
 
@@ -96,7 +102,7 @@ export class TaskGetTool implements Tool {
   inputSchema = {
     type: 'object',
     properties: { taskId: { type: 'string' } },
-    required: ['taskId']
+    required: ['taskId'],
   }
 
   isConcurrencySafe = () => false

@@ -11,8 +11,16 @@ async function bootstrap() {
   initLogger({ level: 'error', file: '/dev/null' })
 }
 
-const BYPASS: PermissionContext = { mode: 'bypass', allowRules: [], strippedRules: [] }
-const DEFAULT: PermissionContext = { mode: 'default', allowRules: [], strippedRules: [] }
+const BYPASS: PermissionContext = {
+  mode: 'bypass',
+  allowRules: [],
+  strippedRules: [],
+}
+const DEFAULT: PermissionContext = {
+  mode: 'default',
+  allowRules: [],
+  strippedRules: [],
+}
 
 function makeTool(name: string, result: any = 'ok'): Tool {
   return createTool({
@@ -96,9 +104,11 @@ describe('ToolRegistry', () => {
     })
 
     it('throws AgentError with TOOL_NOT_FOUND for unknown tool', async () => {
-      await expect(registry.execute('ghost', {}, BYPASS)).rejects.toMatchObject({
-        code: 'TOOL_NOT_FOUND'
-      })
+      await expect(registry.execute('ghost', {}, BYPASS)).rejects.toMatchObject(
+        {
+          code: 'TOOL_NOT_FOUND',
+        }
+      )
     })
 
     it('throws PERMISSION_DENIED when tool returns deny', async () => {
@@ -107,11 +117,13 @@ describe('ToolRegistry', () => {
         description: 'restricted',
         inputSchema: {},
         execute: async () => 'ok',
-        checkPermissions: () => ({ type: 'deny', reason: 'not allowed' })
+        checkPermissions: () => ({ type: 'deny', reason: 'not allowed' }),
       })
       registry.register(tool)
-      await expect(registry.execute('restricted', {}, DEFAULT)).rejects.toMatchObject({
-        code: 'PERMISSION_DENIED'
+      await expect(
+        registry.execute('restricted', {}, DEFAULT)
+      ).rejects.toMatchObject({
+        code: 'PERMISSION_DENIED',
       })
     })
 
@@ -120,12 +132,16 @@ describe('ToolRegistry', () => {
         name: 'broken',
         description: 'broken',
         inputSchema: {},
-        execute: async () => { throw new Error('unexpected crash') },
-        checkPermissions: () => ({ type: 'allow' })
+        execute: async () => {
+          throw new Error('unexpected crash')
+        },
+        checkPermissions: () => ({ type: 'allow' }),
       })
       registry.register(tool)
-      await expect(registry.execute('broken', {}, BYPASS)).rejects.toMatchObject({
-        code: 'TOOL_EXECUTION_FAILED'
+      await expect(
+        registry.execute('broken', {}, BYPASS)
+      ).rejects.toMatchObject({
+        code: 'TOOL_EXECUTION_FAILED',
       })
     })
 
@@ -138,11 +154,13 @@ describe('ToolRegistry', () => {
         execute: async () => {
           throw new AgentError(ErrorCode.PERMISSION_DENIED, 'denied')
         },
-        checkPermissions: () => ({ type: 'allow' })
+        checkPermissions: () => ({ type: 'allow' }),
       })
       registry.register(tool)
-      await expect(registry.execute('failing', {}, BYPASS)).rejects.toMatchObject({
-        code: 'PERMISSION_DENIED'
+      await expect(
+        registry.execute('failing', {}, BYPASS)
+      ).rejects.toMatchObject({
+        code: 'PERMISSION_DENIED',
       })
     })
 
@@ -151,8 +169,9 @@ describe('ToolRegistry', () => {
         name: 'slow',
         description: 'slow',
         inputSchema: {},
-        execute: () => new Promise(resolve => setTimeout(() => resolve('done'), 500)),
-        checkPermissions: () => ({ type: 'allow' })
+        execute: () =>
+          new Promise(resolve => setTimeout(() => resolve('done'), 500)),
+        checkPermissions: () => ({ type: 'allow' }),
       })
       registry.register(slow)
       const result = await registry.execute('slow', {}, BYPASS)

@@ -5,7 +5,7 @@ export enum LogLevel {
   DEBUG = 0,
   INFO = 1,
   WARN = 2,
-  ERROR = 3
+  ERROR = 3,
 }
 
 export interface LogEntry {
@@ -49,7 +49,7 @@ export class Logger {
       timestamp: new Date().toISOString(),
       level: LogLevel[level],
       message,
-      context
+      context,
     }
 
     this.logToConsole(entry)
@@ -61,7 +61,7 @@ export class Logger {
       DEBUG: '\x1b[36m',
       INFO: '\x1b[32m',
       WARN: '\x1b[33m',
-      ERROR: '\x1b[31m'
+      ERROR: '\x1b[31m',
     }
     const reset = '\x1b[0m'
 
@@ -69,7 +69,9 @@ export class Logger {
     const time = entry.timestamp.split('T')[1].split('.')[0]
 
     const contextStr = entry.context ? ' ' + JSON.stringify(entry.context) : ''
-    console.log(`${color}[${time}] ${entry.level}${reset} ${entry.message}${contextStr}`)
+    console.log(
+      `${color}[${time}] ${entry.level}${reset} ${entry.message}${contextStr}`
+    )
   }
 
   private logToFile(entry: LogEntry) {

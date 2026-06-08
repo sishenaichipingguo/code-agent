@@ -1,4 +1,4 @@
-+import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
 import { SkillLoader } from './skill-loader'
 import { SlashCommandRegistry } from './registry'
 import { mkdirSync, writeFileSync, rmSync } from 'fs'
@@ -20,14 +20,17 @@ describe('SkillLoader', () => {
   })
 
   it('loads a valid skill file and registers it', async () => {
-    writeFileSync(join(tmpDir, 'review.md'), `---
+    writeFileSync(
+      join(tmpDir, 'review.md'),
+      `---
 name: review
 description: Review code
 trigger: /review
 args: optional
 ---
 
-Review the code. Focus on: {{args}}`)
+Review the code. Focus on: {{args}}`
+    )
 
     const loader = new SkillLoader([tmpDir])
     await loader.loadInto(registry)
@@ -39,10 +42,13 @@ Review the code. Focus on: {{args}}`)
   })
 
   it('skips files with missing frontmatter fields', async () => {
-    writeFileSync(join(tmpDir, 'bad.md'), `---
+    writeFileSync(
+      join(tmpDir, 'bad.md'),
+      `---
 description: no name or trigger
 ---
-body`)
+body`
+    )
 
     const loader = new SkillLoader([tmpDir])
     await loader.loadInto(registry)
@@ -57,13 +63,16 @@ body`)
   })
 
   it('derives command name from trigger when name field is absent', async () => {
-    writeFileSync(join(tmpDir, 'deploy.md'), `---
+    writeFileSync(
+      join(tmpDir, 'deploy.md'),
+      `---
 description: Deploy the app
 trigger: /deploy
 args: none
 ---
 
-Run the deployment pipeline.`)
+Run the deployment pipeline.`
+    )
 
     const loader = new SkillLoader([tmpDir])
     await loader.loadInto(registry)
@@ -77,20 +86,26 @@ Run the deployment pipeline.`)
     const dir2 = join(os.tmpdir(), `skill-test2-${Date.now()}`)
     mkdirSync(dir2, { recursive: true })
 
-    writeFileSync(join(tmpDir, 'foo.md'), `---
+    writeFileSync(
+      join(tmpDir, 'foo.md'),
+      `---
 name: foo
 description: low priority
 trigger: /foo
 args: none
 ---
-low`)
-    writeFileSync(join(dir2, 'foo.md'), `---
+low`
+    )
+    writeFileSync(
+      join(dir2, 'foo.md'),
+      `---
 name: foo
 description: high priority
 trigger: /foo
 args: none
 ---
-high`)
+high`
+    )
 
     const loader = new SkillLoader([tmpDir, dir2])
     await loader.loadInto(registry)
