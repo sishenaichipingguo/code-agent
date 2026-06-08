@@ -25,9 +25,10 @@ export function buildCallToolHandler(registry: ToolRegistry) {
       const result = await registry.execute(name, args ?? {}, BYPASS_CTX)
       const text = typeof result === 'string' ? result : JSON.stringify(result)
       return { content: [{ type: 'text' as const, text }] }
-    } catch (error: any) {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
       return {
-        content: [{ type: 'text' as const, text: `Error: ${error.message}` }],
+        content: [{ type: 'text' as const, text: `Error: ${message}` }],
         isError: true,
       }
     }

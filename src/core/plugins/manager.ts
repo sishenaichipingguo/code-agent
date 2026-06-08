@@ -31,9 +31,10 @@ export class PluginManager {
             dir: pluginDir,
             skills: manifest.skills,
           })
-        } catch (err: any) {
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
           process.stderr.write(
-            `[plugin-manager] Failed to load plugin at ${pluginDir}: ${err.message}\n`
+            `[plugin-manager] Failed to load plugin at ${pluginDir}: ${message}\n`
           )
         }
       }

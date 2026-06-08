@@ -13,25 +13,39 @@ try {
   console.log('📊 Memory System Statistics\n')
 
   // 统计会话数
-  const sessionCount = db.prepare('SELECT COUNT(*) as count FROM sessions').get() as any
+  const sessionCount = db
+    .prepare('SELECT COUNT(*) as count FROM sessions')
+    .get() as { count: number }
   console.log(`Sessions: ${sessionCount.count}`)
 
   // 统计观察记录数
-  const obsCount = db.prepare('SELECT COUNT(*) as count FROM observations').get() as any
+  const obsCount = db
+    .prepare('SELECT COUNT(*) as count FROM observations')
+    .get() as { count: number }
   console.log(`Observations: ${obsCount.count}`)
 
   // 统计摘要数
-  const summaryCount = db.prepare('SELECT COUNT(*) as count FROM summaries').get() as any
+  const summaryCount = db
+    .prepare('SELECT COUNT(*) as count FROM summaries')
+    .get() as { count: number }
   console.log(`Summaries: ${summaryCount.count}`)
 
   // 最近的会话
   console.log('\n📝 Recent Sessions:\n')
-  const recentSessions = db.prepare(`
+  const recentSessions = db
+    .prepare(
+      `
     SELECT project, prompt_count, created_at
     FROM sessions
     ORDER BY created_at DESC
     LIMIT 5
-  `).all() as any[]
+  `
+    )
+    .all() as Array<{
+    project: string
+    prompt_count: number
+    created_at: number
+  }>
 
   if (recentSessions.length === 0) {
     console.log('  No sessions recorded yet.')
@@ -44,12 +58,16 @@ try {
 
   // 最近的观察记录
   console.log('\n🔍 Recent Observations:\n')
-  const recentObs = db.prepare(`
+  const recentObs = db
+    .prepare(
+      `
     SELECT type, content, created_at
     FROM observations
     ORDER BY created_at DESC
     LIMIT 5
-  `).all() as any[]
+  `
+    )
+    .all() as Array<{ type: string; content: string; created_at: number }>
 
   if (recentObs.length === 0) {
     console.log('  No observations recorded yet.')
@@ -65,19 +83,19 @@ try {
 
   console.log('\n💡 Tip: Use --with-memory flag to enable recording')
   console.log('   Example: bun run dev --with-memory "your task"')
-
-} catch (error: any) {
-  if (error.message.includes('no such table')) {
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error)
+  if (message.includes('no such table')) {
     console.log('📭 No memory data found.')
     console.log('\nTo start recording:')
     console.log('  1. Set ANTHROPIC_API_KEY environment variable')
     console.log('  2. Run: bun run dev --with-memory "your task"')
-  } else if (error.message.includes('unable to open database')) {
+  } else if (message.includes('unable to open database')) {
     console.log('📭 Memory database not found.')
     console.log('\nMemory system has not been used yet.')
     console.log('To start recording:')
     console.log('  bun run dev --with-memory "your task"')
   } else {
-    console.error('Error:', error.message)
+    console.error('Error:', message)
   }
 }

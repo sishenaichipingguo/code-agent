@@ -1,10 +1,11 @@
 import type { ModelAdapter } from '@/core/models/adapter'
+import type { ContentBlock } from '@/core/models/types'
 import type { MemoryManager } from './manager'
 import type { MemoryType } from './types'
 
 interface Message {
   role: 'user' | 'assistant'
-  content: any
+  content: string | ContentBlock[]
 }
 
 interface ExtractedEntry {
@@ -53,7 +54,7 @@ JSON:`
         messages: [{ role: 'user', content: prompt }],
         stream: false,
       },
-      undefined as any
+      { toSchema: () => [] }
     )
 
     if (response.type !== 'text' || !response.content) return

@@ -1,8 +1,10 @@
 // Session management for context persistence
 
+import type { ContentBlock } from '@/core/models/types'
+
 export interface Message {
   role: 'user' | 'assistant'
-  content: any
+  content: string | ContentBlock[]
   timestamp: number
 }
 
@@ -35,7 +37,10 @@ export class SessionManager {
     return session
   }
 
-  async saveMessage(role: 'user' | 'assistant', content: any) {
+  async saveMessage(
+    role: 'user' | 'assistant',
+    content: string | ContentBlock[]
+  ) {
     if (!this.currentSession) return
 
     this.currentSession.messages.push({

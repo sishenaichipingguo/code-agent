@@ -34,8 +34,9 @@ export class SlashCommandRegistry {
     if (entry.cmd.handler) {
       try {
         return await entry.cmd.handler(cmdCtx)
-      } catch (err: any) {
-        process.stderr.write(`Error running /${name}: ${err.message}\n`)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        process.stderr.write(`Error running /${name}: ${message}\n`)
         return { type: 'handled' }
       }
     }

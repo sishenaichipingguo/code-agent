@@ -28,17 +28,27 @@ export class TaskManager {
     const path = this.getStoragePath()
     if (existsSync(path)) {
       try {
-        const data = JSON.parse(readFileSync(path, 'utf-8'))
+        const data = JSON.parse(readFileSync(path, 'utf-8')) as {
+          nextId?: number
+          tasks?: Array<
+            Omit<Task, 'created' | 'updated'> & {
+              created: string
+              updated: string
+            }
+          >
+        }
         this.nextId = data.nextId || 1
-        data.tasks?.forEach((t: any) => {
+        data.tasks?.forEach(t => {
           this.tasks.set(t.id, {
             ...t,
             created: new Date(t.created),
             updated: new Date(t.updated),
           })
         })
-      } catch (e: any) {
-        getLogger().error('Failed to load tasks', { error: e?.message ?? e })
+      } catch (e) {
+        getLogger().error('Failed to load tasks', {
+          error: e instanceof Error ? e.message : String(e),
+        })
       }
     }
   }

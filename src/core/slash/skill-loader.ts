@@ -35,9 +35,10 @@ export class SkillLoader {
             },
             priority
           )
-        } catch (err: any) {
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
           process.stderr.write(
-            `[skill-loader] Failed to load ${file}: ${err.message}\n`
+            `[skill-loader] Failed to load ${file}: ${message}\n`
           )
         }
       }

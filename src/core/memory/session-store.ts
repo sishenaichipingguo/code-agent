@@ -1,10 +1,11 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import type { ModelAdapter } from '@/core/models/adapter'
+import type { ContentBlock } from '@/core/models/types'
 
 interface Message {
   role: 'user' | 'assistant'
-  content: any
+  content: string | ContentBlock[]
 }
 
 export class SessionStore {
@@ -44,7 +45,7 @@ SUMMARY:`
         messages: [{ role: 'user', content: prompt }],
         stream: false,
       },
-      undefined as any
+      { toSchema: () => [] }
     )
 
     if (response.type !== 'text' || !response.content) return

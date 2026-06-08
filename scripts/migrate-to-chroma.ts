@@ -25,7 +25,14 @@ async function migrate() {
       ORDER BY created_at ASC
     `)
 
-    const rows = stmt.all() as any[]
+    const rows = stmt.all() as Array<{
+      id: number
+      session_id: number
+      type: string
+      content: string
+      metadata: string
+      created_at: number
+    }>
     console.log(`📊 Found ${rows.length} observations in SQLite\n`)
 
     if (rows.length === 0) {
@@ -86,8 +93,11 @@ async function migrate() {
     console.log(`   ChromaDB: ${finalStats.count} observations`)
 
     db.close()
-  } catch (error: any) {
-    console.error('❌ Migration failed:', error.message)
+  } catch (error) {
+    console.error(
+      '❌ Migration failed:',
+      error instanceof Error ? error.message : String(error)
+    )
     process.exit(1)
   }
 }

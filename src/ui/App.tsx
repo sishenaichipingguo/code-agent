@@ -14,11 +14,12 @@ import { CommandCompletionProvider } from '@/core/completion/providers/command'
 import { HistoryCompletionProvider } from '@/core/completion/providers/history'
 import { HistoryManager } from '@/core/history/manager'
 import type { Completion } from '@/core/completion/engine'
+import type { AgentChunk } from '@/core/agent/loop'
 
 interface AppProps {
   model: string
   mode: 'yolo' | 'safe'
-  onMessage: (text: string) => AsyncGenerator<any>
+  onMessage: (text: string) => AsyncGenerator<AgentChunk>
 }
 
 export function App({ model, mode, onMessage }: AppProps) {

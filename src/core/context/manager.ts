@@ -78,8 +78,10 @@ export class ContextManager {
   async ptlRetry<T>(messages: RawMessage[], fn: () => Promise<T>): Promise<T> {
     try {
       return await fn()
-    } catch (err: any) {
-      const msg: string = (err?.message ?? '').toLowerCase()
+    } catch (err) {
+      const msg: string = (
+        err instanceof Error ? err.message : String(err)
+      ).toLowerCase()
       const isPtl = PTL_PATTERNS.some(p => msg.includes(p))
       if (!isPtl) throw err
 

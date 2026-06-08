@@ -1,5 +1,6 @@
 import type { Compressor, CompressorResult, RawMessage } from './types'
 import type { ModelAdapter } from '@/core/models/adapter'
+import type { UnifiedRequest } from '@/core/models/types'
 
 export class ManualCompactor implements Compressor {
   async run(
@@ -28,7 +29,7 @@ export class ManualCompactor implements Compressor {
               'Be thorough — this summary will replace the entire conversation history.',
             ].join('\n'),
           },
-        ] as any,
+        ] as UnifiedRequest['messages'],
         max_tokens: 2048,
         stream: false,
       },

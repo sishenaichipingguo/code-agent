@@ -13,11 +13,20 @@ try {
   const db = new Database(dbPath)
 
   // Get all sessions
-  const sessions = db.prepare(`
+  const sessions = db
+    .prepare(
+      `
     SELECT id, project, prompt_count, created_at
     FROM sessions
     ORDER BY created_at DESC
-  `).all() as any[]
+  `
+    )
+    .all() as Array<{
+    id: number
+    project: string
+    prompt_count: number
+    created_at: number
+  }>
 
   if (sessions.length === 0) {
     console.log('❌ No sessions found. Run with --with-memory first.\n')
@@ -34,12 +43,20 @@ try {
     console.log(`  Prompts: ${session.prompt_count}`)
 
     // Get observations for this session
-    const observations = db.prepare(`
+    const observations = db
+      .prepare(
+        `
       SELECT type, content, created_at
       FROM observations
       WHERE session_id = ?
       ORDER BY created_at ASC
-    `).all(session.id) as any[]
+    `
+      )
+      .all(session.id) as Array<{
+      type: string
+      content: string
+      created_at: number
+    }>
 
     if (observations.length > 0) {
       console.log(`  Observations: ${observations.length}`)
@@ -56,8 +73,12 @@ try {
   // Test cross-session data
   console.log('🔗 Cross-Session Analysis:\n')
 
-  const totalObs = db.prepare('SELECT COUNT(*) as count FROM observations').get() as any
-  const totalPrompts = db.prepare('SELECT SUM(prompt_count) as total FROM sessions').get() as any
+  const totalObs = db
+    .prepare('SELECT COUNT(*) as count FROM observations')
+    .get() as { count: number }
+  const totalPrompts = db
+    .prepare('SELECT SUM(prompt_count) as total FROM sessions')
+    .get() as { total: number | null }
 
   console.log(`  Total prompts across all sessions: ${totalPrompts.total || 0}`)
   console.log(`  Total observations recorded: ${totalObs.count}`)
@@ -77,14 +98,15 @@ try {
   console.log('   2. Exit and run: bun run dev --with-memory "what file did I create earlier?"')
   console.log('   3. Run this test again to see both sessions')
 
-} catch (error: any) {
-  if (error.message.includes('unable to open database')) {
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error)
+  if (message.includes('unable to open database')) {
     console.log('❌ Memory database not found.')
     console.log('\nTo create it:')
     console.log('  export ANTHROPIC_API_KEY="your-key"')
     console.log('  export WORKER_MODEL="claude-sonnet-4-6"')
     console.log('  bun run dev --with-memory "test message"')
   } else {
-    console.error('Error:', error.message)
+    console.error('Error:', message)
   }
 }

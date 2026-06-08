@@ -1,5 +1,6 @@
 import type { Compressor, CompressorResult, RawMessage } from './types'
 import type { ModelAdapter } from '@/core/models/adapter'
+import type { UnifiedRequest } from '@/core/models/types'
 
 const MICRO_FRACTION = 0.2
 const MIN_MESSAGES_FOR_MICRO = 6
@@ -28,7 +29,7 @@ export class MicroCompactor implements Compressor {
             content:
               'Briefly summarize these messages in 2-3 sentences. Focus only on concrete facts: what files were touched, what decisions were made, what errors were hit.',
           },
-        ] as any,
+        ] as UnifiedRequest['messages'],
         max_tokens: 512,
         stream: false,
       },

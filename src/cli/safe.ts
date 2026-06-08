@@ -42,7 +42,7 @@ export async function runSafe(args: Args) {
 
   // Initialize components
   const tools = await createToolRegistry()
-  const hookManager = createHookManager(config.hooks as any)
+  const hookManager = createHookManager(config.hooks)
 
   // Start embedded MCP server if configured
   if (config.mcp?.expose) {

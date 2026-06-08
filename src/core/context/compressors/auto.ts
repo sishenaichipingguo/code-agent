@@ -1,5 +1,6 @@
 import type { Compressor, CompressorResult, RawMessage } from './types'
 import type { ModelAdapter } from '@/core/models/adapter'
+import type { UnifiedRequest } from '@/core/models/types'
 
 const KEEP_RECENT_ROUNDS = 3
 
@@ -27,7 +28,7 @@ export class AutoCompressor implements Compressor {
             content:
               'Summarize the above conversation concisely. Preserve: key decisions made, files created or modified, errors encountered and resolved, and context needed to continue the current task.',
           },
-        ] as any,
+        ] as UnifiedRequest['messages'],
         max_tokens: 1024,
         stream: false,
       },

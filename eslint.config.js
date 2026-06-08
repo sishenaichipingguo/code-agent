@@ -12,9 +12,8 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
 
-  // Project-wide tuning. Rules are intentionally gentle to start: the most
-  // common existing issues (any, console, unused vars) are warnings, not
-  // errors, so they don't block the build. Tighten to "error" over time.
+  // Project-wide rules. The codebase has been cleaned up, so these are
+  // enforced as errors to prevent regressions (CI fails on violations).
   {
     languageOptions: {
       ecmaVersion: 2022,
@@ -28,21 +27,18 @@ export default tseslint.config(
       },
     },
     rules: {
-      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-unused-vars': [
-        'warn',
+        'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
-      'no-console': 'warn',
-      eqeqeq: ['warn', 'always'],
-      // Downgraded from the recommended "error" to "warn" so they surface as
-      // cleanup signals without blocking CI. Tighten back to "error" as the
-      // codebase is cleaned up.
-      '@typescript-eslint/no-require-imports': 'warn',
-      '@typescript-eslint/no-unused-expressions': 'warn',
-      'no-empty': 'warn',
-      'preserve-caught-error': 'warn',
-      'no-useless-assignment': 'warn',
+      'no-console': 'error',
+      eqeqeq: ['error', 'always'],
+      '@typescript-eslint/no-require-imports': 'error',
+      '@typescript-eslint/no-unused-expressions': 'error',
+      'no-empty': 'error',
+      'preserve-caught-error': 'error',
+      'no-useless-assignment': 'error',
     },
   },
 

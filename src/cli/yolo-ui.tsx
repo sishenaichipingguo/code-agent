@@ -9,7 +9,7 @@ import { GracefulShutdown } from '@/infra/graceful-shutdown'
 import { createToolRegistry } from '@/core/tools/registry'
 import { ModelFactory } from '@/core/models/factory'
 import { SessionManager } from '@/core/session/manager'
-import { AgentLoop } from '@/core/agent/loop'
+import { AgentLoop, type AgentChunk } from '@/core/agent/loop'
 import { buildPermissionContext } from '@/core/permissions'
 import { SystemPromptBuilder } from '@/core/system-prompt/builder'
 import { initMemoryManager, getMemoryManager } from '@/core/tools/memory'
@@ -57,10 +57,9 @@ export async function runYoloUI(args: Args) {
         }
 
         logger.info('Memory system started', { port: workerManager.getPort() })
-      } catch (error: any) {
-        process.stderr.write(
-          `⚠️  Failed to start memory system: ${error.message}\n`
-        )
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        process.stderr.write(`⚠️  Failed to start memory system: ${message}\n`)
         process.stderr.write('   Continuing without memory...\n')
         workerManager = undefined
       }
@@ -83,12 +82,12 @@ export async function runYoloUI(args: Args) {
   const tools = await createToolRegistry()
 
   // Auto-inject Hook configuration if memory is enabled
-  let hookManager = createHookManager(config.hooks as any)
+  let hookManager = createHookManager(config.hooks)
   if (workerManager) {
     const memoryHooks = createMemoryHooks(workerManager.getPort(), args.verbose)
     // Merge existing hooks and memory hooks
     const mergedHooks = { ...config.hooks, ...memoryHooks }
-    hookManager = createHookManager(mergedHooks as any)
+    hookManager = createHookManager(mergedHooks)
     logger.info('Memory hooks injected')
 
     // Show tip for non-verbose mode
@@ -132,11 +131,11 @@ export async function runYoloUI(args: Args) {
   })
 
   const onMessage = async function* (text: string) {
-    const queue: any[] = []
+    const queue: AgentChunk[] = []
     let resolve: (() => void) | null = null
     let done = false
 
-    loop.context.onChunk = (chunk: any) => {
+    loop.context.onChunk = (chunk: AgentChunk) => {
       queue.push(chunk)
       resolve?.()
       resolve = null
@@ -150,7 +149,8 @@ export async function runYoloUI(args: Args) {
 
     while (true) {
       while (queue.length > 0) {
-        yield queue.shift()
+        const chunk = queue.shift()
+        if (chunk) yield chunk
       }
       if (done) break
       await new Promise<void>(r => {

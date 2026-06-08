@@ -1,5 +1,6 @@
 import type { ToolRegistry } from '@/core/tools/registry'
 import type { McpConfig, SdkClientLike, ClientFactory } from '../types'
+import type { Logger } from '@/infra/logger'
 import { createMcpTool } from './tool-wrapper'
 import { createClientTransport } from './transport'
 
@@ -8,7 +9,9 @@ async function defaultClientFactory(
 ): Promise<SdkClientLike> {
   const { Client } = await import('@modelcontextprotocol/sdk/client/index.js')
   const client = new Client({ name: 'code-agent', version: '1.0.0' })
-  await client.connect(transport as any)
+  await client.connect(
+    transport as Parameters<InstanceType<typeof Client>['connect']>[0]
+  )
   return client as unknown as SdkClientLike
 }
 
@@ -19,10 +22,7 @@ export class McpClientManager {
 
   async loadTools(registry: ToolRegistry, config: McpConfig): Promise<void> {
     const servers = config.servers ?? {}
-    let logger: {
-      info: (msg: string, ctx?: any) => void
-      warn: (msg: string, ctx?: any) => void
-    } | null = null
+    let logger: Logger | null = null
     try {
       const { getLogger } = await import('@/infra/logger')
       logger = getLogger()
@@ -46,12 +46,13 @@ export class McpClientManager {
         process.stderr.write(
           `MCP server "${serverName}" connected (${tools.length} tools)\n`
         )
-      } catch (error: any) {
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
         logger?.warn(`MCP server failed: ${serverName}`, {
-          error: error.message,
+          error: message,
         })
         process.stderr.write(
-          `MCP server "${serverName}" failed to connect: ${error.message}\n`
+          `MCP server "${serverName}" failed to connect: ${message}\n`
         )
       }
     }

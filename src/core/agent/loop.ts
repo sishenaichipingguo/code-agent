@@ -19,6 +19,18 @@ import { getMetrics } from '@/infra/metrics'
 // blocks (text / tool_use / tool_result), matching the model adapters.
 type MessageContent = string | ContentBlock[]
 
+// A streamed update emitted during an agent run.
+export type AgentChunk =
+  | { type: 'text'; content: string }
+  | { type: 'tool_start'; name: string; input: string }
+  | {
+      type: 'tool_end'
+      name: string
+      duration: number
+      result: string
+      error?: string
+    }
+
 export interface AgentContext {
   model: ModelAdapter
   tools: ToolRegistry
@@ -34,18 +46,7 @@ export interface AgentContext {
   sessionManager?: SessionManager
   hooks?: HookManager
   memoryRecallFn?: (query: string, project?: string) => Promise<string>
-  onChunk?: (
-    chunk:
-      | { type: 'text'; content: string }
-      | { type: 'tool_start'; name: string; input: string }
-      | {
-          type: 'tool_end'
-          name: string
-          duration: number
-          result: string
-          error?: string
-        }
-  ) => void
+  onChunk?: (chunk: AgentChunk) => void
 }
 
 interface Message {

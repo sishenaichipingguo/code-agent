@@ -9,7 +9,7 @@ export interface Task {
   owner?: string
   blocks: string[]
   blockedBy: string[]
-  metadata: Record<string, any>
+  metadata: Record<string, unknown>
   created: Date
   updated: Date
 }
@@ -18,7 +18,7 @@ export interface TaskCreateInput {
   subject: string
   description: string
   activeForm?: string
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 export interface TaskUpdateInput {
@@ -30,5 +30,5 @@ export interface TaskUpdateInput {
   owner?: string
   addBlocks?: string[]
   addBlockedBy?: string[]
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }

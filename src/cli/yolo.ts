@@ -21,6 +21,7 @@ import { loadConfig } from '@/core/config/loader'
 import { AgentLoop } from '@/core/agent/loop'
 import { createToolRegistry } from '@/core/tools/registry'
 import { ModelFactory } from '@/core/models/factory'
+import type { ContentBlock } from '@/core/models/types'
 import { SessionManager } from '@/core/session/manager'
 import { initAgentDispatcher } from '@/core/tools/agent'
 import { ContextManager } from '@/core/context/manager'
@@ -77,10 +78,9 @@ export async function runYolo(args: Args) {
         }
 
         logger.info('Memory system started', { port: workerManager.getPort() })
-      } catch (error: any) {
-        process.stderr.write(
-          `⚠️  Failed to start memory system: ${error.message}\n`
-        )
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        process.stderr.write(`⚠️  Failed to start memory system: ${message}\n`)
         process.stderr.write('   Continuing without memory...\n')
         workerManager = undefined
       }
@@ -113,12 +113,12 @@ export async function runYolo(args: Args) {
   const tools = await createToolRegistry()
 
   // Auto-inject Hook configuration if memory is enabled
-  let hookManager = createHookManager(config.hooks as any)
+  let hookManager = createHookManager(config.hooks)
   if (workerManager) {
     const memoryHooks = createMemoryHooks(workerManager.getPort(), args.verbose)
     // Merge existing hooks and memory hooks
     const mergedHooks = { ...config.hooks, ...memoryHooks }
-    hookManager = createHookManager(mergedHooks as any)
+    hookManager = createHookManager(mergedHooks)
     logger.info('Memory hooks injected')
 
     // Show tip for non-verbose mode
@@ -170,7 +170,10 @@ export async function runYolo(args: Args) {
   await sessionManager.createSession('yolo', config.model)
 
   // Resume session if requested
-  let initialMessages: Array<{ role: 'user' | 'assistant'; content: any }> = []
+  let initialMessages: Array<{
+    role: 'user' | 'assistant'
+    content: string | ContentBlock[]
+  }> = []
   if (args.session || args.resume) {
     const existing = args.session
       ? await sessionManager.loadSession(args.session)
@@ -240,8 +243,10 @@ export async function runYolo(args: Args) {
 
         const data = (await response.json()) as { formattedText?: string }
         return data.formattedText || ''
-      } catch (error: any) {
-        logger.warn('Memory recall failed', { error: error.message })
+      } catch (error) {
+        logger.warn('Memory recall failed', {
+          error: error instanceof Error ? error.message : String(error),
+        })
         return ''
       }
     }
