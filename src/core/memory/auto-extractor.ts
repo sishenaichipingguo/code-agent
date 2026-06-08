@@ -25,7 +25,10 @@ export class AutoExtractor {
 
     const existingIndex = this.manager.loadIndex()
     const transcript = messages
-      .map(m => `${m.role.toUpperCase()}: ${typeof m.content === 'string' ? m.content : JSON.stringify(m.content)}`)
+      .map(
+        m =>
+          `${m.role.toUpperCase()}: ${typeof m.content === 'string' ? m.content : JSON.stringify(m.content)}`
+      )
       .join('\n')
 
     const prompt = `You are extracting persistent facts from a coding assistant conversation.
@@ -44,11 +47,14 @@ ${transcript}
 
 JSON:`
 
-    const response = await this.model.chat({
-      model: this.model.name,
-      messages: [{ role: 'user', content: prompt }],
-      stream: false
-    }, undefined as any)
+    const response = await this.model.chat(
+      {
+        model: this.model.name,
+        messages: [{ role: 'user', content: prompt }],
+        stream: false,
+      },
+      undefined as any
+    )
 
     if (response.type !== 'text' || !response.content) return
 
@@ -68,7 +74,7 @@ JSON:`
           name: entry.name,
           description: entry.description ?? '',
           type: entry.type,
-          content: entry.content
+          content: entry.content,
         })
       } catch {
         // Skip malformed entries silently

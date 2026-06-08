@@ -1,16 +1,25 @@
 import type { Config } from '@/core/config/schema'
 import type { ToolRegistry } from '@/core/tools/registry'
 import { buildListToolsHandler, buildCallToolHandler } from './handlers'
-import { connectStdioServerTransport, connectHttpServerTransport } from './transport'
+import {
+  connectStdioServerTransport,
+  connectHttpServerTransport,
+} from './transport'
 
-export async function startMcpServer(config: Config, registry: ToolRegistry): Promise<void> {
+export async function startMcpServer(
+  config: Config,
+  registry: ToolRegistry
+): Promise<void> {
   const expose = config.mcp?.expose
   if (!expose) {
-    throw new Error('MCP server requires mcp.expose to be configured in .agent.yml')
+    throw new Error(
+      'MCP server requires mcp.expose to be configured in .agent.yml'
+    )
   }
 
   const { Server } = await import('@modelcontextprotocol/sdk/server/index.js')
-  const { ListToolsRequestSchema, CallToolRequestSchema } = await import('@modelcontextprotocol/sdk/types.js')
+  const { ListToolsRequestSchema, CallToolRequestSchema } =
+    await import('@modelcontextprotocol/sdk/types.js')
 
   const restricted = registry.createRestricted(expose.tools)
 
@@ -19,8 +28,14 @@ export async function startMcpServer(config: Config, registry: ToolRegistry): Pr
     { capabilities: { tools: {} } }
   )
 
-  server.setRequestHandler(ListToolsRequestSchema, buildListToolsHandler(restricted))
-  server.setRequestHandler(CallToolRequestSchema, buildCallToolHandler(restricted))
+  server.setRequestHandler(
+    ListToolsRequestSchema,
+    buildListToolsHandler(restricted)
+  )
+  server.setRequestHandler(
+    CallToolRequestSchema,
+    buildCallToolHandler(restricted)
+  )
 
   if (expose.transport === 'stdio') {
     await connectStdioServerTransport(server)

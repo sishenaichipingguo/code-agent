@@ -7,7 +7,9 @@ export function truncateMemoryIndex(content: string): string {
   // Trim by line count
   if (lines.length > MAX_ENTRYPOINT_LINES) {
     const kept = lines.slice(0, MAX_ENTRYPOINT_LINES)
-    return kept.join('\n') + '\n\n... [truncated] (memory index exceeded line limit)'
+    return (
+      kept.join('\n') + '\n\n... [truncated] (memory index exceeded line limit)'
+    )
   }
 
   // Trim by byte count

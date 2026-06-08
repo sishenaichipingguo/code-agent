@@ -14,7 +14,10 @@ export function loadRules(): AllowRule[] {
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
     return parsed.filter(
-      r => typeof r?.tool === 'string' && r?.matcher && typeof r?.persistent === 'boolean'
+      r =>
+        typeof r?.tool === 'string' &&
+        r?.matcher &&
+        typeof r?.persistent === 'boolean'
     )
   } catch {
     return []

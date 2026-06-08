@@ -22,7 +22,9 @@ interface AppProps {
 }
 
 export function App({ model, mode, onMessage }: AppProps) {
-  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([])
+  const [messages, setMessages] = useState<
+    Array<{ role: 'user' | 'assistant'; content: string }>
+  >([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [toolEvents, setToolEvents] = useState<ToolEvent[]>([])
   const [completions, setCompletions] = useState<Completion[]>([])
@@ -54,7 +56,7 @@ export function App({ model, mode, onMessage }: AppProps) {
       if (historyIndex > -1) {
         setHistoryIndex(historyIndex - 1)
       }
-    }
+    },
   })
 
   const handleSubmit = async (text: string) => {
@@ -71,21 +73,34 @@ export function App({ model, mode, onMessage }: AppProps) {
     try {
       for await (const chunk of onMessage(text)) {
         if (chunk.type === 'tool_start') {
-          setToolEvents(prev => [...prev, { name: chunk.name, status: 'running' }])
+          setToolEvents(prev => [
+            ...prev,
+            { name: chunk.name, status: 'running' },
+          ])
         }
         if (chunk.type === 'tool_end') {
-          setToolEvents(prev => prev.map(e =>
-            e.name === chunk.name && e.status === 'running'
-              ? { ...e, status: chunk.error ? 'error' : 'done', duration: chunk.duration, summary: (chunk.error ?? chunk.result).slice(0, 60) }
-              : e
-          ))
+          setToolEvents(prev =>
+            prev.map(e =>
+              e.name === chunk.name && e.status === 'running'
+                ? {
+                    ...e,
+                    status: chunk.error ? 'error' : 'done',
+                    duration: chunk.duration,
+                    summary: (chunk.error ?? chunk.result).slice(0, 60),
+                  }
+                : e
+            )
+          )
         }
         if (chunk.type === 'text' && chunk.content) {
           assistantContent += chunk.content
           setMessages(prev => {
             const last = prev[prev.length - 1]
             if (last?.role === 'assistant') {
-              return [...prev.slice(0, -1), { role: 'assistant', content: assistantContent }]
+              return [
+                ...prev.slice(0, -1),
+                { role: 'assistant', content: assistantContent },
+              ]
             }
             return [...prev, { role: 'assistant', content: assistantContent }]
           })

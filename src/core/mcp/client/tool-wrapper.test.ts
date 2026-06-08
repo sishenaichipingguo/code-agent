@@ -7,30 +7,46 @@ function makeMockClient(callResult: string): SdkClientLike {
     connect: mock(async () => {}),
     listTools: mock(async () => ({ tools: [] })),
     callTool: mock(async () => ({
-      content: [{ type: 'text', text: callResult }]
+      content: [{ type: 'text', text: callResult }],
     })),
-    close: mock(async () => {})
+    close: mock(async () => {}),
   }
 }
 
 describe('createMcpTool', () => {
   it('prefixes tool name with server name using double underscore', () => {
-    const tool = createMcpTool('myserver', { name: 'get_file' }, makeMockClient('ok'))
+    const tool = createMcpTool(
+      'myserver',
+      { name: 'get_file' },
+      makeMockClient('ok')
+    )
     expect(tool.name).toBe('myserver__get_file')
   })
 
   it('uses remote tool description', () => {
-    const tool = createMcpTool('myserver', { name: 'get_file', description: 'Read a file' }, makeMockClient('ok'))
+    const tool = createMcpTool(
+      'myserver',
+      { name: 'get_file', description: 'Read a file' },
+      makeMockClient('ok')
+    )
     expect(tool.description).toBe('Read a file')
   })
 
   it('falls back to generated description when none provided', () => {
-    const tool = createMcpTool('myserver', { name: 'get_file' }, makeMockClient('ok'))
+    const tool = createMcpTool(
+      'myserver',
+      { name: 'get_file' },
+      makeMockClient('ok')
+    )
     expect(tool.description).toContain('myserver')
   })
 
   it('checkPermissions returns ask with server and tool name in description', () => {
-    const tool = createMcpTool('myserver', { name: 'get_file' }, makeMockClient('ok'))
+    const tool = createMcpTool(
+      'myserver',
+      { name: 'get_file' },
+      makeMockClient('ok')
+    )
     const ctx = { mode: 'default' as const, allowRules: [], strippedRules: [] }
     const result = tool.checkPermissions({}, ctx)
     expect(result.type).toBe('ask')
@@ -41,7 +57,11 @@ describe('createMcpTool', () => {
   })
 
   it('isConcurrencySafe returns false', () => {
-    const tool = createMcpTool('myserver', { name: 'do_thing' }, makeMockClient('ok'))
+    const tool = createMcpTool(
+      'myserver',
+      { name: 'do_thing' },
+      makeMockClient('ok')
+    )
     expect(tool.isConcurrencySafe({})).toBe(false)
   })
 
@@ -51,7 +71,7 @@ describe('createMcpTool', () => {
     await tool.execute({ foo: 'bar' })
     expect(client.callTool).toHaveBeenCalledWith({
       name: 'do_thing',
-      arguments: { foo: 'bar' }
+      arguments: { foo: 'bar' },
     })
   })
 
@@ -68,9 +88,9 @@ describe('createMcpTool', () => {
       callTool: mock(async () => ({
         content: [
           { type: 'text', text: 'line 1' },
-          { type: 'text', text: 'line 2' }
-        ]
-      }))
+          { type: 'text', text: 'line 2' },
+        ],
+      })),
     }
     const tool = createMcpTool('myserver', { name: 'do_thing' }, client)
     expect(await tool.execute({})).toBe('line 1\nline 2')
@@ -80,8 +100,8 @@ describe('createMcpTool', () => {
     const client: SdkClientLike = {
       ...makeMockClient(''),
       callTool: mock(async () => ({
-        content: [{ type: 'image', url: 'http://example.com/img.png' }]
-      }))
+        content: [{ type: 'image', url: 'http://example.com/img.png' }],
+      })),
     }
     const tool = createMcpTool('myserver', { name: 'do_thing' }, client)
     expect(await tool.execute({})).toBe('Tool executed successfully')
@@ -92,8 +112,8 @@ describe('createMcpTool', () => {
       ...makeMockClient(''),
       callTool: mock(async () => ({
         content: [{ type: 'text', text: 'something went wrong' }],
-        isError: true
-      }))
+        isError: true,
+      })),
     }
     const tool = createMcpTool('myserver', { name: 'do_thing' }, client)
     await expect(tool.execute({})).rejects.toThrow('something went wrong')

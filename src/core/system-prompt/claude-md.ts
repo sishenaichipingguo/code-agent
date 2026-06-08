@@ -14,7 +14,8 @@ export async function loadClaudeMd(cwd: string): Promise<string> {
   const globalPath = join(homedir(), '.claude', 'CLAUDE.md')
   if (existsSync(globalPath)) {
     const content = readFileSync(globalPath, 'utf-8').trim()
-    if (content) sections.push(`[Global instructions — ~/.claude/CLAUDE.md]\n${content}`)
+    if (content)
+      sections.push(`[Global instructions — ~/.claude/CLAUDE.md]\n${content}`)
   }
 
   // 2. Walk from cwd up to filesystem root, collect paths
@@ -23,7 +24,7 @@ export async function loadClaudeMd(cwd: string): Promise<string> {
   while (true) {
     ancestors.push(dir)
     const parent = dirname(dir)
-    if (parent === dir) break  // reached root
+    if (parent === dir) break // reached root
     dir = parent
   }
 

@@ -7,22 +7,28 @@ export const MvTool = createTool({
   inputSchema: {
     type: 'object',
     properties: {
-      source:      { type: 'string' },
-      destination: { type: 'string' }
+      source: { type: 'string' },
+      destination: { type: 'string' },
     },
-    required: ['source', 'destination']
+    required: ['source', 'destination'],
   },
   checkPermissions: (input: unknown) => {
     const inp = input as { source?: string; destination?: string }
-    return { type: 'ask' as const, description: `Move ${inp.source} → ${inp.destination}` }
+    return {
+      type: 'ask' as const,
+      description: `Move ${inp.source} → ${inp.destination}`,
+    }
   },
   preparePermissionMatcher: (input: unknown) => {
     const inp = input as { source?: string }
     if (typeof inp.source !== 'string') return null
     return { kind: 'path-glob' as const, glob: inp.source }
   },
-  async execute(input: { source: string; destination: string }): Promise<string> {
+  async execute(input: {
+    source: string
+    destination: string
+  }): Promise<string> {
     await rename(input.source, input.destination)
     return `Moved ${input.source} to ${input.destination}`
-  }
+  },
 })

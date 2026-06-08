@@ -59,9 +59,17 @@ if (args.mcpServe) {
     // --port implies HTTP transport; set up or override expose config accordingly
     if (!config.mcp) config.mcp = {}
     if (!config.mcp.expose) {
-      config.mcp.expose = { tools: ['read', 'glob', 'grep', 'ls'], transport: 'http', port: args.port }
+      config.mcp.expose = {
+        tools: ['read', 'glob', 'grep', 'ls'],
+        transport: 'http',
+        port: args.port,
+      }
     } else {
-      config.mcp.expose = { ...config.mcp.expose, transport: 'http', port: args.port }
+      config.mcp.expose = {
+        ...config.mcp.expose,
+        transport: 'http',
+        port: args.port,
+      }
     }
   }
   const registry = await createToolRegistry()

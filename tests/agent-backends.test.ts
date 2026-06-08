@@ -11,7 +11,8 @@ describe('AgentBackend interface', () => {
 
 describe('InProcessBackend', () => {
   test('implements AgentBackend interface', async () => {
-    const { InProcessBackend } = await import('../src/core/agent/backends/in-process')
+    const { InProcessBackend } =
+      await import('../src/core/agent/backends/in-process')
     const backend = new InProcessBackend()
     expect(backend.name).toBe('in-process')
     expect(typeof backend.execute).toBe('function')
@@ -19,7 +20,8 @@ describe('InProcessBackend', () => {
   })
 
   test('kill() before execute does not throw', async () => {
-    const { InProcessBackend } = await import('../src/core/agent/backends/in-process')
+    const { InProcessBackend } =
+      await import('../src/core/agent/backends/in-process')
     const backend = new InProcessBackend()
     expect(() => backend.kill()).not.toThrow()
   })
@@ -59,7 +61,8 @@ describe('ITerm2Backend', () => {
 
 describe('BackendFactory', () => {
   test('detect() returns in-process when no tmux or iTerm2', async () => {
-    const { BackendFactory } = await import('../src/core/agent/backends/factory')
+    const { BackendFactory } =
+      await import('../src/core/agent/backends/factory')
     const origTmux = process.env.TMUX
     const origIterm = process.env.ITERM_SESSION_ID
     delete process.env.TMUX
@@ -71,7 +74,8 @@ describe('BackendFactory', () => {
   })
 
   test('create() returns correct backend for each type', async () => {
-    const { BackendFactory } = await import('../src/core/agent/backends/factory')
+    const { BackendFactory } =
+      await import('../src/core/agent/backends/factory')
     expect(BackendFactory.create('in-process').name).toBe('in-process')
     expect(BackendFactory.create('tmux').name).toBe('tmux')
     expect(BackendFactory.create('iterm2').name).toBe('iterm2')

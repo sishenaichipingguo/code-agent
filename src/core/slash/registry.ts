@@ -10,18 +10,22 @@ export class SlashCommandRegistry {
     }
   }
 
-  async dispatch(rawMessage: string, ctx: CommandContext): Promise<CommandResult> {
+  async dispatch(
+    rawMessage: string,
+    ctx: CommandContext
+  ): Promise<CommandResult> {
     if (!rawMessage.startsWith('/')) return { type: 'unknown' }
 
     const spaceIdx = rawMessage.indexOf(' ')
-    const name = spaceIdx === -1
-      ? rawMessage.slice(1)
-      : rawMessage.slice(1, spaceIdx)
+    const name =
+      spaceIdx === -1 ? rawMessage.slice(1) : rawMessage.slice(1, spaceIdx)
     const args = spaceIdx === -1 ? '' : rawMessage.slice(spaceIdx + 1).trim()
 
     const entry = this.commands.get(name)
     if (!entry) {
-      process.stderr.write(`Unknown command: /${name}. Run /help for available commands.\n`)
+      process.stderr.write(
+        `Unknown command: /${name}. Run /help for available commands.\n`
+      )
       return { type: 'unknown' }
     }
 

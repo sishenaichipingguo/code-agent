@@ -16,7 +16,7 @@ export class AgentDispatcher {
       provider: process.env.SUBAGENT_PROVIDER ?? 'anthropic',
       model: process.env.AGENT_MODEL ?? 'claude-sonnet-4-6',
       apiKey: process.env.ANTHROPIC_API_KEY,
-      baseUrl: process.env.AGENT_BASE_URL
+      baseUrl: process.env.AGENT_BASE_URL,
     }
     const detected = BackendFactory.detect()
     this.backendType = backendType ?? detected.name
@@ -37,11 +37,15 @@ export class AgentDispatcher {
 
     this.runningAgents.set(agentId, backend)
 
-    const executePromise = backend.execute(config, prompt, this.modelConfig)
+    const executePromise = backend
+      .execute(config, prompt, this.modelConfig)
       .finally(() => this.runningAgents.delete(agentId))
 
     if (options.background) {
-      this.resultCache.set(agentId, executePromise.catch(err => `SubAgent failed: ${err.message}`))
+      this.resultCache.set(
+        agentId,
+        executePromise.catch(err => `SubAgent failed: ${err.message}`)
+      )
       return { agentId, status: 'running' }
     }
 

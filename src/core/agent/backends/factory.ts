@@ -20,9 +20,12 @@ export class BackendFactory {
 
   static create(type: BackendType): AgentBackend {
     switch (type) {
-      case 'tmux':   return new TmuxBackend()
-      case 'iterm2': return new ITerm2Backend()
-      default:       return new InProcessBackend()
+      case 'tmux':
+        return new TmuxBackend()
+      case 'iterm2':
+        return new ITerm2Backend()
+      default:
+        return new InProcessBackend()
     }
   }
 }

@@ -28,7 +28,7 @@ export class SessionManager {
       createdAt: Date.now(),
       updatedAt: Date.now(),
       messages: [],
-      metadata: { model, mode, toolsUsed: [] }
+      metadata: { model, mode, toolsUsed: [] },
     }
 
     this.currentSession = session
@@ -41,7 +41,7 @@ export class SessionManager {
     this.currentSession.messages.push({
       role,
       content,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     })
 
     this.currentSession.updatedAt = Date.now()
@@ -70,7 +70,7 @@ export class SessionManager {
 
       // Sort by modification time
       const sessions = await Promise.all(
-        files.map(async (file) => {
+        files.map(async file => {
           const path = `${this.sessionsDir}/${file}`
           const data = await Bun.file(path).text()
           return JSON.parse(data) as Session

@@ -1,14 +1,18 @@
 import type { ToolRegistry } from '@/core/tools/registry'
 import type { PermissionContext } from '@/core/permissions'
 
-const BYPASS_CTX: PermissionContext = { mode: 'bypass', allowRules: [], strippedRules: [] }
+const BYPASS_CTX: PermissionContext = {
+  mode: 'bypass',
+  allowRules: [],
+  strippedRules: [],
+}
 
 export function buildListToolsHandler(registry: ToolRegistry) {
   return async (_request: unknown) => {
     const tools = registry.toSchema().map(t => ({
       name: t.name,
       description: t.description,
-      inputSchema: t.input_schema
+      inputSchema: t.input_schema,
     }))
     return { tools }
   }
@@ -24,7 +28,7 @@ export function buildCallToolHandler(registry: ToolRegistry) {
     } catch (error: any) {
       return {
         content: [{ type: 'text' as const, text: `Error: ${error.message}` }],
-        isError: true
+        isError: true,
       }
     }
   }

@@ -11,7 +11,9 @@ export function Header({ model, mode, session }: HeaderProps) {
   return (
     <Box flexDirection="column" paddingBottom={1}>
       <Box>
-        <Text bold color="cyan">▲ Code Agent</Text>
+        <Text bold color="cyan">
+          ▲ Code Agent
+        </Text>
         <Text dimColor> v0.1.0</Text>
       </Box>
       <Box>

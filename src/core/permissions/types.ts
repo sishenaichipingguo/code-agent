@@ -5,13 +5,13 @@ export type PermissionMode = 'bypass' | 'default' | 'auto'
 /** Returned by tool.checkPermissions() */
 export type PermissionResult =
   | { type: 'allow' }
-  | { type: 'deny';  reason: string }
-  | { type: 'ask';   description: string }
+  | { type: 'deny'; reason: string }
+  | { type: 'ask'; description: string }
 
 /** A matcher produced by a tool so the rule engine can match future calls */
 export type PermissionMatcher =
   | { kind: 'bash-prefix'; prefix: string }
-  | { kind: 'path-glob';   glob: string }
+  | { kind: 'path-glob'; glob: string }
 
 export interface AllowRule {
   tool: string

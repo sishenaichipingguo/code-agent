@@ -1,4 +1,9 @@
-import type { Task, TaskCreateInput, TaskUpdateInput, TaskStatus } from './types'
+import type {
+  Task,
+  TaskCreateInput,
+  TaskUpdateInput,
+  TaskStatus,
+} from './types'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 
@@ -33,7 +38,7 @@ export class TaskManager {
           this.tasks.set(t.id, {
             ...t,
             created: new Date(t.created),
-            updated: new Date(t.updated)
+            updated: new Date(t.updated),
           })
         })
       } catch (e) {
@@ -46,7 +51,7 @@ export class TaskManager {
     const data = {
       nextId: this.nextId,
       tasks: Array.from(this.tasks.values()),
-      updated: new Date().toISOString()
+      updated: new Date().toISOString(),
     }
     writeFileSync(this.getStoragePath(), JSON.stringify(data, null, 2))
   }
@@ -62,7 +67,7 @@ export class TaskManager {
       blockedBy: [],
       metadata: input.metadata || {},
       created: new Date(),
-      updated: new Date()
+      updated: new Date(),
     }
     this.tasks.set(task.id, task)
     this.save()

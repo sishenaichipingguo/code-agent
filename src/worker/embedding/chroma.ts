@@ -10,7 +10,7 @@ export class ChromaManager {
   constructor(private dataDir: string) {
     // 使用嵌入式模式，数据存储在本地
     this.client = new ChromaClient({
-      path: `${dataDir}/chroma`
+      path: `${dataDir}/chroma`,
     })
   }
 
@@ -18,14 +18,14 @@ export class ChromaManager {
     try {
       // 尝试获取已存在的 collection
       this.collection = await this.client.getCollection({
-        name: this.collectionName
+        name: this.collectionName,
       })
       console.log('✅ ChromaDB collection loaded')
     } catch {
       // 如果不存在，创建新的 collection
       this.collection = await this.client.createCollection({
         name: this.collectionName,
-        metadata: { description: 'Memory observations with embeddings' }
+        metadata: { description: 'Memory observations with embeddings' },
       })
       console.log('✅ ChromaDB collection created')
     }
@@ -47,12 +47,14 @@ export class ChromaManager {
       ids: [`obs_${observation.id}`],
       embeddings: [embedding],
       documents: [observation.content],
-      metadatas: [{
-        session_id: observation.sessionId,
-        type: observation.type,
-        created_at: observation.createdAt,
-        ...observation.metadata
-      }]
+      metadatas: [
+        {
+          session_id: observation.sessionId,
+          type: observation.type,
+          created_at: observation.createdAt,
+          ...observation.metadata,
+        },
+      ],
     })
   }
 
@@ -66,15 +68,17 @@ export class ChromaManager {
       limit?: number
       minScore?: number
     } = {}
-  ): Promise<Array<{
-    id: number
-    content: string
-    type: string
-    sessionId: number
-    createdAt: number
-    metadata: any
-    score: number
-  }>> {
+  ): Promise<
+    Array<{
+      id: number
+      content: string
+      type: string
+      sessionId: number
+      createdAt: number
+      metadata: any
+      score: number
+    }>
+  > {
     if (!this.collection) {
       throw new Error('ChromaDB not initialized')
     }
@@ -92,7 +96,7 @@ export class ChromaManager {
     const results = await this.collection.query({
       queryEmbeddings: [queryEmbedding],
       nResults: limit,
-      where
+      where,
     })
 
     // 解析结果
@@ -120,7 +124,7 @@ export class ChromaManager {
           sessionId: metadata.session_id,
           createdAt: metadata.created_at,
           metadata,
-          score
+          score,
         })
       }
     }
@@ -155,7 +159,7 @@ export class ChromaManager {
         session_id: obs.sessionId,
         type: obs.type,
         created_at: obs.createdAt,
-        ...obs.metadata
+        ...obs.metadata,
       })
     }
 
@@ -163,7 +167,7 @@ export class ChromaManager {
       ids,
       embeddings,
       documents,
-      metadatas
+      metadatas,
     })
 
     console.log(`✅ Added ${observations.length} observations to ChromaDB`)

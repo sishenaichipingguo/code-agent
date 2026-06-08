@@ -18,7 +18,7 @@ class Tracer {
       id,
       name,
       parent,
-      startTime: performance.now()
+      startTime: performance.now(),
     })
     return id
   }

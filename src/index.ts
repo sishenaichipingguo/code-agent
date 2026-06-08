@@ -10,7 +10,9 @@ export interface AgentInstance {
 
 export type { AgentInitOptions }
 
-export async function createAgent(opts: AgentInitOptions = {}): Promise<AgentInstance> {
+export async function createAgent(
+  opts: AgentInitOptions = {}
+): Promise<AgentInstance> {
   const init = new AgentInitializer(opts)
   await init.setup()
 
@@ -22,6 +24,6 @@ export async function createAgent(opts: AgentInitOptions = {}): Promise<AgentIns
   return {
     run: (message: string) => loop.run(message),
     loop,
-    init
+    init,
   }
 }

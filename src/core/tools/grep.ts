@@ -9,14 +9,14 @@ export const GrepTool = createTool({
     properties: {
       pattern: {
         type: 'string',
-        description: 'Text pattern to search for'
+        description: 'Text pattern to search for',
       },
       path: {
         type: 'string',
-        description: 'Path to search in (default: current directory)'
-      }
+        description: 'Path to search in (default: current directory)',
+      },
     },
-    required: ['pattern']
+    required: ['pattern'],
   },
   isConcurrencySafe: () => true,
   isReadOnly: () => true,
@@ -25,21 +25,21 @@ export const GrepTool = createTool({
     return new Promise((resolve, reject) => {
       const searchPath = input.path || '.'
       const proc = spawn('grep', ['-r', '-n', input.pattern, searchPath], {
-        cwd: process.cwd()
+        cwd: process.cwd(),
       })
 
       let stdout = ''
       let stderr = ''
 
-      proc.stdout.on('data', (data) => {
+      proc.stdout.on('data', data => {
         stdout += data.toString()
       })
 
-      proc.stderr.on('data', (data) => {
+      proc.stderr.on('data', data => {
         stderr += data.toString()
       })
 
-      proc.on('close', (code) => {
+      proc.on('close', code => {
         if (code === 0) {
           resolve(stdout || 'No matches found')
         } else if (code === 1) {
@@ -49,5 +49,5 @@ export const GrepTool = createTool({
         }
       })
     })
-  }
+  },
 })

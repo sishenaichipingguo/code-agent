@@ -13,7 +13,11 @@ export function matchesRule(
       if (typeof inp['command'] !== 'string') return false
       const cmd = inp['command'].trimStart()
       const prefix = rule.matcher.prefix.trimEnd()
-      return cmd === prefix || cmd.startsWith(prefix + ' ') || cmd.startsWith(prefix + '\t')
+      return (
+        cmd === prefix ||
+        cmd.startsWith(prefix + ' ') ||
+        cmd.startsWith(prefix + '\t')
+      )
     }
     case 'path-glob': {
       if (typeof inp['path'] !== 'string') return false

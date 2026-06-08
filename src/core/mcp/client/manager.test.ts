@@ -11,10 +11,10 @@ function makeClient(toolNames: string[]): SdkClientLike {
   return {
     connect: mock(async () => {}),
     listTools: mock(async () => ({
-      tools: toolNames.map(name => ({ name, description: `${name} tool` }))
+      tools: toolNames.map(name => ({ name, description: `${name} tool` })),
     })),
     callTool: mock(async () => ({ content: [{ type: 'text', text: 'ok' }] })),
-    close: mock(async () => {})
+    close: mock(async () => {}),
   }
 }
 
@@ -27,8 +27,8 @@ describe('McpClientManager', () => {
 
     await manager.loadTools(registry, {
       servers: {
-        myfs: { type: 'stdio', command: 'npx', args: ['some-server'] }
-      }
+        myfs: { type: 'stdio', command: 'npx', args: ['some-server'] },
+      },
     })
 
     expect(registry.get('myfs__get_file')).toBeDefined()
@@ -36,13 +36,15 @@ describe('McpClientManager', () => {
   })
 
   it('skips a server that fails and does not throw', async () => {
-    const factory = mock(async () => { throw new Error('connection refused') })
+    const factory = mock(async () => {
+      throw new Error('connection refused')
+    })
     const manager = new McpClientManager(factory)
     const registry = makeRegistry()
 
     // verify loadTools does not reject when a server fails to connect
     await manager.loadTools(registry, {
-      servers: { failing: { type: 'stdio', command: 'bad', args: [] } }
+      servers: { failing: { type: 'stdio', command: 'bad', args: [] } },
     })
 
     expect(registry.get('failing__anything')).toBeUndefined()
@@ -60,8 +62,8 @@ describe('McpClientManager', () => {
     await manager.loadTools(registry, {
       servers: {
         serverA: { type: 'stdio', command: 'a', args: [] },
-        serverB: { type: 'http', url: 'http://localhost:3000/sse' }
-      }
+        serverB: { type: 'http', url: 'http://localhost:3000/sse' },
+      },
     })
 
     expect(registry.get('serverA__tool_a')).toBeDefined()
@@ -83,8 +85,8 @@ describe('McpClientManager', () => {
     await manager.loadTools(registry, {
       servers: {
         s1: { type: 'stdio', command: 'a', args: [] },
-        s2: { type: 'stdio', command: 'b', args: [] }
-      }
+        s2: { type: 'stdio', command: 'b', args: [] },
+      },
     })
 
     await manager.disconnect()

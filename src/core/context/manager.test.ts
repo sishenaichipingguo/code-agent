@@ -5,13 +5,13 @@ import type { RawMessage } from './compressors/types'
 const mockModel = {
   name: 'claude-sonnet-4-6',
   capabilities: { tools: false, streaming: false, vision: false },
-  chat: mock(async () => ({ type: 'text' as const, content: 'summary text' }))
+  chat: mock(async () => ({ type: 'text' as const, content: 'summary text' })),
 }
 
 const makeMessages = (n: number): RawMessage[] =>
   Array.from({ length: n }, (_, i) => ({
     role: (i % 2 === 0 ? 'user' : 'assistant') as 'user' | 'assistant',
-    content: `message ${i}`
+    content: `message ${i}`,
   }))
 
 describe('ContextManager', () => {

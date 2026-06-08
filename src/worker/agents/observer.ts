@@ -1,5 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk'
-import type { InitPromptContext, ContinuationPromptContext, SummaryPromptContext } from '../types'
+import type {
+  InitPromptContext,
+  ContinuationPromptContext,
+  SummaryPromptContext,
+} from '../types'
 
 export class SDKAgent {
   private client: Anthropic
@@ -8,7 +12,8 @@ export class SDKAgent {
   constructor(apiKey: string, model?: string) {
     this.client = new Anthropic({ apiKey })
     // Use configurable model, fallback to a more compatible default
-    this.model = model || process.env.WORKER_MODEL || 'claude-3-5-sonnet-20241022'
+    this.model =
+      model || process.env.WORKER_MODEL || 'claude-3-5-sonnet-20241022'
   }
 
   async processInit(context: InitPromptContext): Promise<string> {
@@ -17,20 +22,22 @@ export class SDKAgent {
     const response = await this.client.messages.create({
       model: this.model,
       max_tokens: 1024,
-      messages: [{ role: 'user', content: prompt }]
+      messages: [{ role: 'user', content: prompt }],
     })
 
     const content = response.content[0]
     return content.type === 'text' ? content.text : ''
   }
 
-  async processContinuation(context: ContinuationPromptContext): Promise<string> {
+  async processContinuation(
+    context: ContinuationPromptContext
+  ): Promise<string> {
     const prompt = this.buildContinuationPrompt(context)
 
     const response = await this.client.messages.create({
       model: this.model,
       max_tokens: 512,
-      messages: [{ role: 'user', content: prompt }]
+      messages: [{ role: 'user', content: prompt }],
     })
 
     const content = response.content[0]
@@ -43,7 +50,7 @@ export class SDKAgent {
     const response = await this.client.messages.create({
       model: this.model,
       max_tokens: 1024,
-      messages: [{ role: 'user', content: prompt }]
+      messages: [{ role: 'user', content: prompt }],
     })
 
     const content = response.content[0]
@@ -75,9 +82,10 @@ export class SDKAgent {
 
   private buildContinuationPrompt(context: ContinuationPromptContext): string {
     const inputStr = JSON.stringify(context.toolInput, null, 2).slice(0, 500)
-    const responseStr = typeof context.toolResponse === 'string'
-      ? context.toolResponse.slice(0, 1000)
-      : JSON.stringify(context.toolResponse, null, 2).slice(0, 1000)
+    const responseStr =
+      typeof context.toolResponse === 'string'
+        ? context.toolResponse.slice(0, 1000)
+        : JSON.stringify(context.toolResponse, null, 2).slice(0, 1000)
 
     return `继续观察用户的操作。
 
@@ -122,7 +130,9 @@ ${context.lastAssistantMessage.slice(0, 2000)}
   }
 
   parseObservation(response: string): { type: string; content: string } | null {
-    const match = response.match(/<observation type="([^"]+)">([\s\S]*?)<\/observation>/)
+    const match = response.match(
+      /<observation type="([^"]+)">([\s\S]*?)<\/observation>/
+    )
     if (match) {
       return { type: match[1], content: match[2].trim() }
     }

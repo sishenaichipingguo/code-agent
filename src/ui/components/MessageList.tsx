@@ -13,7 +13,11 @@ export function MessageList({ messages }: MessageListProps) {
   return (
     <Box flexDirection="column" flexGrow={1} paddingX={1}>
       {messages.map((msg, i) => (
-        <Message key={`${msg.role}-${i}`} role={msg.role} content={msg.content} />
+        <Message
+          key={`${msg.role}-${i}`}
+          role={msg.role}
+          content={msg.content}
+        />
       ))}
     </Box>
   )
