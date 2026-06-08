@@ -1,4 +1,8 @@
-import type { CompletionProvider, CompletionContext, Completion } from '../engine'
+import type {
+  CompletionProvider,
+  CompletionContext,
+  Completion,
+} from '../engine'
 
 export class ToolCompletionProvider implements CompletionProvider {
   private tools = [
@@ -11,7 +15,7 @@ export class ToolCompletionProvider implements CompletionProvider {
     { name: 'ls', description: 'List directory' },
     { name: 'cp', description: 'Copy file' },
     { name: 'mv', description: 'Move/rename file' },
-    { name: 'rm', description: 'Delete file' }
+    { name: 'rm', description: 'Delete file' },
   ]
 
   async getCompletions(context: CompletionContext): Promise<Completion[]> {
@@ -24,7 +28,7 @@ export class ToolCompletionProvider implements CompletionProvider {
         display: t.name,
         description: t.description,
         type: 'tool' as const,
-        score: t.name === word ? 100 : 70
+        score: t.name === word ? 100 : 70,
       }))
   }
 }

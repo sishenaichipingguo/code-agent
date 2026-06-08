@@ -18,19 +18,24 @@ afterEach(() => {
 })
 
 const extracted = JSON.stringify([
-  { name: 'prefers-bun', description: 'user prefers Bun over Node', type: 'user', content: 'Uses Bun for all TS projects.' }
+  {
+    name: 'prefers-bun',
+    description: 'user prefers Bun over Node',
+    type: 'user',
+    content: 'Uses Bun for all TS projects.',
+  },
 ])
 
 const mockModelExtracts = {
   name: 'claude-sonnet-4-6',
   capabilities: { tools: false, streaming: false, vision: false },
-  chat: mock(async () => ({ type: 'text' as const, content: extracted }))
+  chat: mock(async () => ({ type: 'text' as const, content: extracted })),
 }
 
 const mockModelEmpty = {
   name: 'claude-sonnet-4-6',
   capabilities: { tools: false, streaming: false, vision: false },
-  chat: mock(async () => ({ type: 'text' as const, content: '[]' }))
+  chat: mock(async () => ({ type: 'text' as const, content: '[]' })),
 }
 
 describe('AutoExtractor', () => {
@@ -38,18 +43,23 @@ describe('AutoExtractor', () => {
     const extractor = new AutoExtractor(mgr, mockModelExtracts as any)
     const messages = [
       { role: 'user' as const, content: 'I always use Bun not Node' },
-      { role: 'assistant' as const, content: 'Noted, using Bun.' }
+      { role: 'assistant' as const, content: 'Noted, using Bun.' },
     ]
     await extractor.extract(messages)
     expect(mgr.loadIndex()).toContain('prefers-bun')
   })
 
   it('skips already-known memories (dedup by name)', async () => {
-    mgr.save({ name: 'prefers-bun', description: 'existing', type: 'user', content: 'exists' })
+    mgr.save({
+      name: 'prefers-bun',
+      description: 'existing',
+      type: 'user',
+      content: 'exists',
+    })
     const extractor = new AutoExtractor(mgr, mockModelExtracts as any)
     const messages = [
       { role: 'user' as const, content: 'I always use Bun' },
-      { role: 'assistant' as const, content: 'Yes.' }
+      { role: 'assistant' as const, content: 'Yes.' },
     ]
     await extractor.extract(messages)
     // Should NOT have duplicated the entry — count link-text occurrences only
@@ -60,7 +70,10 @@ describe('AutoExtractor', () => {
 
   it('is a no-op when model returns empty array', async () => {
     const extractor = new AutoExtractor(mgr, mockModelEmpty as any)
-    await extractor.extract([{ role: 'user', content: 'hi' }, { role: 'assistant', content: 'hey' }])
+    await extractor.extract([
+      { role: 'user', content: 'hi' },
+      { role: 'assistant', content: 'hey' },
+    ])
     expect(mgr.loadIndex()).not.toContain('[')
   })
 })

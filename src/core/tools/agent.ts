@@ -19,25 +19,36 @@ export function getAgentDispatcher(): AgentDispatcher {
 
 export class AgentTool implements Tool {
   name = 'agent'
-  description = 'Invoke a specialized sub-agent to handle a complex task in an isolated process'
+  description =
+    'Invoke a specialized sub-agent to handle a complex task in an isolated process'
   inputSchema = {
     type: 'object',
     properties: {
       subagent_type: {
         type: 'string',
         enum: ['general-purpose', 'explore', 'plan', 'context-gatherer'],
-        description: 'Type of sub-agent to invoke'
+        description: 'Type of sub-agent to invoke',
       },
-      description: { type: 'string', description: 'Short description of what the agent will do' },
-      prompt: { type: 'string', description: 'Full task prompt for the sub-agent' },
-      run_in_background: { type: 'boolean', description: 'Run in background and return agent ID immediately' },
+      description: {
+        type: 'string',
+        description: 'Short description of what the agent will do',
+      },
+      prompt: {
+        type: 'string',
+        description: 'Full task prompt for the sub-agent',
+      },
+      run_in_background: {
+        type: 'boolean',
+        description: 'Run in background and return agent ID immediately',
+      },
       backend: {
         type: 'string',
         enum: ['in-process', 'tmux', 'iterm2'],
-        description: 'Terminal backend for running the sub-agent (auto-detected if omitted)'
-      }
+        description:
+          'Terminal backend for running the sub-agent (auto-detected if omitted)',
+      },
     },
-    required: ['subagent_type', 'description', 'prompt']
+    required: ['subagent_type', 'description', 'prompt'],
   }
 
   isConcurrencySafe = () => false
@@ -49,11 +60,10 @@ export class AgentTool implements Tool {
   async execute(input: AgentInput): Promise<string> {
     const d = getAgentDispatcher()
 
-    const result = await d.dispatch(
-      input.subagent_type,
-      input.prompt,
-      { background: input.run_in_background, backend: input.backend }
-    )
+    const result = await d.dispatch(input.subagent_type, input.prompt, {
+      background: input.run_in_background,
+      backend: input.backend,
+    })
 
     if (result.status === 'running') {
       return `SubAgent started in background. ID: ${result.agentId}\nUse send_message tool with to: "${result.agentId}" to get the result.`
@@ -71,9 +81,12 @@ export class SendMessageTool implements Tool {
   inputSchema = {
     type: 'object',
     properties: {
-      to: { type: 'string', description: 'Agent ID returned by the agent tool' }
+      to: {
+        type: 'string',
+        description: 'Agent ID returned by the agent tool',
+      },
     },
-    required: ['to']
+    required: ['to'],
   }
 
   isConcurrencySafe = () => false

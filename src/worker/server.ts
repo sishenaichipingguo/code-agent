@@ -18,7 +18,7 @@ import type {
   SearchRequest,
   SearchResponse,
   RecallRequest,
-  RecallResponse
+  RecallResponse,
 } from './types'
 import { homedir } from 'os'
 import { join } from 'path'
@@ -75,7 +75,7 @@ app.post('/api/sessions/init', async (req, res) => {
         sessionDbId: -1,
         promptNumber: 0,
         skipped: true,
-        reason: 'Project is in excluded list'
+        reason: 'Project is in excluded list',
       } as SessionInitResponse)
     }
 
@@ -84,12 +84,12 @@ app.post('/api/sessions/init', async (req, res) => {
       project: body.project,
       platformSource: body.platformSource,
       cwd: body.cwd || process.cwd(),
-      prompt: body.prompt
+      prompt: body.prompt,
     })
 
     res.json({
       sessionDbId: result.sessionDbId,
-      promptNumber: result.promptNumber
+      promptNumber: result.promptNumber,
     } as SessionInitResponse)
   } catch (error: any) {
     console.error('Session init error:', error)
@@ -105,12 +105,12 @@ app.post('/api/sessions/observations', async (req, res) => {
       contentSessionId: body.contentSessionId,
       toolName: body.toolName,
       toolInput: body.toolInput,
-      toolResponse: body.toolResponse
+      toolResponse: body.toolResponse,
     })
 
     res.json({
       observationId: result.observationId,
-      queued: true
+      queued: true,
     } as ObservationResponse)
   } catch (error: any) {
     console.error('Observation error:', error)
@@ -124,12 +124,12 @@ app.post('/api/sessions/summarize', async (req, res) => {
 
     const result = await sessionManager.addSummary({
       contentSessionId: body.contentSessionId,
-      lastAssistantMessage: body.lastAssistantMessage
+      lastAssistantMessage: body.lastAssistantMessage,
     })
 
     res.json({
       summaryId: result.summaryId,
-      queued: true
+      queued: true,
     } as SummarizeResponse)
   } catch (error: any) {
     console.error('Summarize error:', error)
@@ -144,7 +144,7 @@ app.post('/api/sessions/complete', async (req, res) => {
     sessionManager.completeSession(body.contentSessionId)
 
     res.json({
-      success: true
+      success: true,
     } as SessionCompleteResponse)
   } catch (error: any) {
     console.error('Session complete error:', error)
@@ -160,7 +160,7 @@ app.get('/api/sessions/status/:contentSessionId', async (req, res) => {
 
     res.json({
       queueLength: status.queueLength,
-      processing: status.processing
+      processing: status.processing,
     } as SessionStatusResponse)
   } catch (error: any) {
     console.error('Session status error:', error)
@@ -180,7 +180,7 @@ app.get('/api/search', async (req, res) => {
       startDate: query.startDate ? parseInt(query.startDate) : undefined,
       endDate: query.endDate ? parseInt(query.endDate) : undefined,
       limit: query.limit ? parseInt(query.limit) : 50,
-      offset: query.offset ? parseInt(query.offset) : 0
+      offset: query.offset ? parseInt(query.offset) : 0,
     }
 
     // 目前只实现 SQLite 搜索，ChromaDB 语义搜索留待后续
@@ -190,13 +190,13 @@ app.get('/api/search', async (req, res) => {
       startDate: params.startDate,
       endDate: params.endDate,
       limit: params.limit,
-      offset: params.offset
+      offset: params.offset,
     })
 
     res.json({
       observations: result.observations,
       total: result.total,
-      fellBack: false
+      fellBack: false,
     } as SearchResponse)
   } catch (error: any) {
     console.error('Search error:', error)
@@ -218,7 +218,7 @@ app.post('/api/recall', async (req, res) => {
     const results = await chroma.searchSimilar(body.query, {
       project: body.project,
       limit: body.limit || 10,
-      minScore: 0.3
+      minScore: 0.3,
     })
 
     // 格式化为结构化文本
@@ -227,7 +227,7 @@ app.post('/api/recall', async (req, res) => {
     res.json({
       memories: results,
       formattedText: formattedMemories,
-      count: results.length
+      count: results.length,
     } as RecallResponse)
   } catch (error: any) {
     console.error('Recall error:', error)
@@ -235,13 +235,15 @@ app.post('/api/recall', async (req, res) => {
   }
 })
 
-function formatMemoriesForPrompt(memories: Array<{
-  content: string
-  type: string
-  createdAt: number
-  metadata: any
-  score: number
-}>): string {
+function formatMemoriesForPrompt(
+  memories: Array<{
+    content: string
+    type: string
+    createdAt: number
+    metadata: any
+    score: number
+  }>
+): string {
   if (memories.length === 0) {
     return ''
   }

@@ -1,8 +1,22 @@
-import type { PermissionContext, PermissionMode, AllowRule, PermissionMatcher } from './types'
+import type {
+  PermissionContext,
+  PermissionMode,
+  AllowRule,
+  PermissionMatcher,
+} from './types'
 import { loadRules, saveRule } from './storage'
 
 const DANGEROUS_TOOLS = new Set(['rm'])
-const DANGEROUS_BASH_PREFIXES = ['rm ', 'kill ', 'pkill ', 'chmod ', 'chown ', 'sudo ', 'mkfs', 'dd ']
+const DANGEROUS_BASH_PREFIXES = [
+  'rm ',
+  'kill ',
+  'pkill ',
+  'chmod ',
+  'chown ',
+  'sudo ',
+  'mkfs',
+  'dd ',
+]
 
 function isDangerousRule(rule: AllowRule): boolean {
   if (DANGEROUS_TOOLS.has(rule.tool)) return true
@@ -10,15 +24,19 @@ function isDangerousRule(rule: AllowRule): boolean {
     const rulePrefix = rule.matcher.prefix.trimEnd()
     return DANGEROUS_BASH_PREFIXES.some(p => {
       const dangerousCmd = p.trimEnd()
-      return rulePrefix === dangerousCmd ||
+      return (
+        rulePrefix === dangerousCmd ||
         rulePrefix.startsWith(dangerousCmd + ' ') ||
         rulePrefix.startsWith(dangerousCmd + '\t')
+      )
     })
   }
   return false
 }
 
-export function buildPermissionContext(mode: PermissionMode): PermissionContext {
+export function buildPermissionContext(
+  mode: PermissionMode
+): PermissionContext {
   const persisted = loadRules()
   return { mode, allowRules: persisted, strippedRules: [] }
 }
@@ -29,11 +47,14 @@ export function enterAutoMode(ctx: PermissionContext): PermissionContext {
   return { mode: 'auto', allowRules: safe, strippedRules: dangerous }
 }
 
-export function exitAutoMode(ctx: PermissionContext, returnMode: PermissionMode = 'default'): PermissionContext {
+export function exitAutoMode(
+  ctx: PermissionContext,
+  returnMode: PermissionMode = 'default'
+): PermissionContext {
   return {
     mode: returnMode,
     allowRules: [...ctx.allowRules, ...ctx.strippedRules],
-    strippedRules: []
+    strippedRules: [],
   }
 }
 

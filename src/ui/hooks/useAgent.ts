@@ -18,37 +18,44 @@ export function useAgent(options: UseAgentOptions) {
   const [messages, setMessages] = useState<Message[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
 
-  const sendMessage = useCallback(async function* (text: string) {
-    setIsProcessing(true)
+  const sendMessage = useCallback(
+    async function* (text: string) {
+      setIsProcessing(true)
 
-    const userMsg: Message = {
-      role: 'user',
-      content: text,
-      timestamp: Date.now()
-    }
-
-    setMessages(prev => [...prev, userMsg])
-
-    try {
-      // Use streaming if available
-      if (options.model.chatStream) {
-        const stream = options.model.chatStream(
-          [{ role: 'user', content: text }],
-          options.tools
-        )
-
-        for await (const chunk of stream) {
-          yield chunk
-        }
+      const userMsg: Message = {
+        role: 'user',
+        content: text,
+        timestamp: Date.now(),
       }
-    } finally {
-      setIsProcessing(false)
-    }
-  }, [options])
+
+      setMessages(prev => [...prev, userMsg])
+
+      try {
+        // Use streaming if available
+        if (options.model.chatStream) {
+          const stream = options.model.chatStream(
+            {
+              model: options.model.name,
+              messages: [{ role: 'user', content: text }],
+              stream: true,
+            },
+            options.tools
+          )
+
+          for await (const chunk of stream) {
+            yield chunk
+          }
+        }
+      } finally {
+        setIsProcessing(false)
+      }
+    },
+    [options]
+  )
 
   return {
     messages,
     isProcessing,
-    sendMessage
+    sendMessage,
   }
 }

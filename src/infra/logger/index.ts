@@ -45,7 +45,7 @@ class FastLogger implements Logger {
       level,
       timestamp: Date.now(),
       message,
-      meta
+      meta,
     }
 
     // YOLO mode: only buffer errors

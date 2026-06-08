@@ -9,10 +9,10 @@ export const GlobTool = createTool({
     properties: {
       pattern: {
         type: 'string',
-        description: 'Glob pattern to match files'
-      }
+        description: 'Glob pattern to match files',
+      },
     },
-    required: ['pattern']
+    required: ['pattern'],
   },
   isConcurrencySafe: () => true,
   isReadOnly: () => true,
@@ -21,12 +21,12 @@ export const GlobTool = createTool({
     try {
       const files = await glob(input.pattern, {
         cwd: process.cwd(),
-        ignore: ['node_modules/**', '.git/**']
+        ignore: ['node_modules/**', '.git/**'],
       })
 
       return files.join('\n') || 'No files found'
     } catch (error: any) {
       throw new Error(`Glob failed: ${error.message}`)
     }
-  }
+  },
 })

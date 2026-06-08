@@ -28,9 +28,7 @@ export function StatusBar({ tokens, performance }: StatusBarProps) {
             <Text>{performance.duration.toFixed(1)}s</Text>
           </>
         )}
-        {!tokens && !performance && (
-          <Text dimColor>✓ Ready</Text>
-        )}
+        {!tokens && !performance && <Text dimColor>✓ Ready</Text>}
       </Box>
     </Box>
   )

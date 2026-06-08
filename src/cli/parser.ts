@@ -6,14 +6,14 @@ export interface Args {
   config?: string
   verbose?: boolean
   ui?: boolean
-  resume?: boolean    // load last session and continue
-  session?: string    // load specific session id and continue
-  mcpServe?: boolean  // start as standalone MCP server
-  port?: number       // port for MCP HTTP transport
+  resume?: boolean // load last session and continue
+  session?: string // load specific session id and continue
+  mcpServe?: boolean // start as standalone MCP server
+  port?: number // port for MCP HTTP transport
   withMemory?: boolean // enable memory system with Worker Service
-  help?: boolean      // show help message
-  version?: boolean   // show version
-  invalidArgs?: string[]  // track invalid arguments
+  help?: boolean // show help message
+  version?: boolean // show version
+  invalidArgs?: string[] // track invalid arguments
 }
 
 export function parseArgs(argv: string[]): Args {

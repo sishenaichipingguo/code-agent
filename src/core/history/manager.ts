@@ -23,7 +23,7 @@ export class HistoryManager {
       id: `hist_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
       command,
       timestamp: Date.now(),
-      success
+      success,
     }
 
     this.cache.push(entry)
@@ -48,9 +48,7 @@ export class HistoryManager {
       const content = await readFile(this.historyFile, 'utf-8')
       const lines = content.trim().split('\n')
 
-      this.cache = lines
-        .filter(l => l.trim())
-        .map(l => JSON.parse(l))
+      this.cache = lines.filter(l => l.trim()).map(l => JSON.parse(l))
     } catch {
       this.cache = []
     }

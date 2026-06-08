@@ -11,7 +11,12 @@ import { SessionManager } from '@/core/session/manager'
 import { createHookManager, type HookManager } from '@/core/hooks/manager'
 import { ContextManager } from '@/core/context/manager'
 import { SystemPromptBuilder } from '@/core/system-prompt/builder'
-import { initMemoryManager, getMemoryManager, initTeamStore, getTeamStore } from '@/core/tools/memory'
+import {
+  initMemoryManager,
+  getMemoryManager,
+  initTeamStore,
+  getTeamStore,
+} from '@/core/tools/memory'
 import { initAgentDispatcher } from '@/core/tools/agent'
 import { SessionStore } from '@/core/memory/session-store'
 import { AutoExtractor } from '@/core/memory/auto-extractor'
@@ -45,7 +50,8 @@ export class AgentInitializer {
   private _teamStore: TeamStore | undefined
 
   readonly shutdown: GracefulShutdown
-  private readonly opts: Required<Pick<AgentInitOptions, 'cwd'>> & AgentInitOptions
+  private readonly opts: Required<Pick<AgentInitOptions, 'cwd'>> &
+    AgentInitOptions
 
   constructor(opts: AgentInitOptions = {}) {
     this.opts = { cwd: process.cwd(), ...opts }
@@ -81,17 +87,25 @@ export class AgentInitializer {
       type: this._config.provider || 'anthropic',
       baseUrl: this._config.baseUrl,
       apiKey: this._config.apiKey,
-      model: modelOverride || this._config.model
+      model: modelOverride || this._config.model,
     })
 
     if (!this.opts.disableMemory) {
       initMemoryManager(cwd)
       if (this._config.memory?.teamDir) {
         initTeamStore(this._config.memory.teamDir)
-        try { this._teamStore = getTeamStore() } catch { /* not configured */ }
+        try {
+          this._teamStore = getTeamStore()
+        } catch {
+          /* not configured */
+        }
       }
       let memMgr: ReturnType<typeof getMemoryManager> | undefined
-      try { memMgr = getMemoryManager() } catch { /* not initialized */ }
+      try {
+        memMgr = getMemoryManager()
+      } catch {
+        /* not initialized */
+      }
       if (memMgr) this._autoExtractor = new AutoExtractor(memMgr, this._model)
     }
     this._sessionStore = new SessionStore(cwd, this._model)
@@ -100,16 +114,24 @@ export class AgentInitializer {
       provider: this._config.provider ?? 'anthropic',
       model: modelOverride || this._config.model,
       apiKey: this._config.apiKey,
-      baseUrl: this._config.baseUrl
+      baseUrl: this._config.baseUrl,
     })
 
     const modelName = modelOverride || this._config.model
-    this._contextManager = new ContextManager(this._model, modelName, this._hookManager)
+    this._contextManager = new ContextManager(
+      this._model,
+      modelName,
+      this._hookManager
+    )
   }
 
   async buildSystemPrompt(): Promise<string> {
     let memMgr: ReturnType<typeof getMemoryManager> | undefined
-    try { memMgr = getMemoryManager() } catch { /* not initialized */ }
+    try {
+      memMgr = getMemoryManager()
+    } catch {
+      /* not initialized */
+    }
     return new SystemPromptBuilder(
       this.opts.cwd,
       memMgr,
@@ -119,24 +141,37 @@ export class AgentInitializer {
   }
 
   buildLoop(opts: BuildLoopOptions): AgentLoop {
-    const { permissionMode, systemPrompt, initialMessages, streaming = true } = opts
+    const {
+      permissionMode,
+      systemPrompt,
+      initialMessages,
+      streaming = true,
+    } = opts
     const ctx: AgentContext = {
       model: this._model,
       tools: this._tools,
-      permissionContext: buildPermissionContext(permissionMode === 'bypass' ? 'bypass' : 'default'),
+      permissionContext: buildPermissionContext(
+        permissionMode === 'bypass' ? 'bypass' : 'default'
+      ),
       logger: getLogger(),
       streaming,
       contextManager: this._contextManager,
       systemPrompt,
       initialMessages,
       sessionManager: this._sessionManager,
-      hooks: this._hookManager
+      hooks: this._hookManager,
     }
     return new AgentLoop(ctx)
   }
 
   registerShutdownHandlers(loop: AgentLoop): void {
-    const { shutdown, _sessionManager, _sessionStore, _autoExtractor, _config } = this
+    const {
+      shutdown,
+      _sessionManager,
+      _sessionStore,
+      _autoExtractor,
+      _config,
+    } = this
 
     shutdown.onShutdown(async () => {
       process.stderr.write('Saving session...\n')
@@ -169,10 +204,22 @@ export class AgentInitializer {
     }
   }
 
-  get config(): Config { return this._config }
-  get model(): ModelAdapter { return this._model }
-  get tools(): ToolRegistry { return this._tools }
-  get hookManager(): HookManager | undefined { return this._hookManager }
-  get sessionManager(): SessionManager { return this._sessionManager }
-  get contextManager(): ContextManager { return this._contextManager }
+  get config(): Config {
+    return this._config
+  }
+  get model(): ModelAdapter {
+    return this._model
+  }
+  get tools(): ToolRegistry {
+    return this._tools
+  }
+  get hookManager(): HookManager | undefined {
+    return this._hookManager
+  }
+  get sessionManager(): SessionManager {
+    return this._sessionManager
+  }
+  get contextManager(): ContextManager {
+    return this._contextManager
+  }
 }

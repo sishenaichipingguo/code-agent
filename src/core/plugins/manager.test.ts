@@ -19,11 +19,14 @@ describe('PluginManager', () => {
   it('loads a valid plugin from directory', async () => {
     const pluginDir = join(tmpDir, 'my-plugin')
     mkdirSync(pluginDir)
-    writeFileSync(join(pluginDir, 'plugin.json'), JSON.stringify({
-      name: 'my-plugin',
-      version: '1.0.0',
-      skills: ['skills/']
-    }))
+    writeFileSync(
+      join(pluginDir, 'plugin.json'),
+      JSON.stringify({
+        name: 'my-plugin',
+        version: '1.0.0',
+        skills: ['skills/'],
+      })
+    )
 
     const manager = new PluginManager([tmpDir])
     await manager.discover()
@@ -47,11 +50,17 @@ describe('PluginManager', () => {
 
     const p1 = join(tmpDir, 'shared-plugin')
     mkdirSync(p1)
-    writeFileSync(join(p1, 'plugin.json'), JSON.stringify({ name: 'shared-plugin', version: '1.0.0' }))
+    writeFileSync(
+      join(p1, 'plugin.json'),
+      JSON.stringify({ name: 'shared-plugin', version: '1.0.0' })
+    )
 
     const p2 = join(dir2, 'shared-plugin')
     mkdirSync(p2)
-    writeFileSync(join(p2, 'plugin.json'), JSON.stringify({ name: 'shared-plugin', version: '2.0.0' }))
+    writeFileSync(
+      join(p2, 'plugin.json'),
+      JSON.stringify({ name: 'shared-plugin', version: '2.0.0' })
+    )
 
     const manager = new PluginManager([tmpDir, dir2])
     await manager.discover()

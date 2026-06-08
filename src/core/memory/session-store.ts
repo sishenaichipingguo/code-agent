@@ -23,7 +23,10 @@ export class SessionStore {
     if (messages.length < 2) return
 
     const transcript = messages
-      .map(m => `${m.role.toUpperCase()}: ${typeof m.content === 'string' ? m.content : JSON.stringify(m.content)}`)
+      .map(
+        m =>
+          `${m.role.toUpperCase()}: ${typeof m.content === 'string' ? m.content : JSON.stringify(m.content)}`
+      )
       .join('\n')
 
     const prompt = `You are summarising a conversation for a coding assistant's memory system.
@@ -35,16 +38,23 @@ ${transcript}
 
 SUMMARY:`
 
-    const response = await this.model.chat({
-      model: this.model.name,
-      messages: [{ role: 'user', content: prompt }],
-      stream: false
-    }, undefined as any)
+    const response = await this.model.chat(
+      {
+        model: this.model.name,
+        messages: [{ role: 'user', content: prompt }],
+        stream: false,
+      },
+      undefined as any
+    )
 
     if (response.type !== 'text' || !response.content) return
 
-    if (!existsSync(this.memoryDir)) mkdirSync(this.memoryDir, { recursive: true })
-    writeFileSync(this.summaryPath, `# Last Session Summary\n\n${response.content.trim()}\n`)
+    if (!existsSync(this.memoryDir))
+      mkdirSync(this.memoryDir, { recursive: true })
+    writeFileSync(
+      this.summaryPath,
+      `# Last Session Summary\n\n${response.content.trim()}\n`
+    )
   }
 
   load(): string {

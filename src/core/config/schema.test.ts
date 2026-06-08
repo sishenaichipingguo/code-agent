@@ -10,7 +10,12 @@ describe('ConfigSchema', () => {
   })
 
   it('accepts valid provider values', () => {
-    for (const provider of ['anthropic', 'ollama', 'openai', 'openai-compatible'] as const) {
+    for (const provider of [
+      'anthropic',
+      'ollama',
+      'openai',
+      'openai-compatible',
+    ] as const) {
       const result = ConfigSchema.parse({ provider })
       expect(result.provider).toBe(provider)
     }
@@ -30,7 +35,10 @@ describe('ConfigSchema', () => {
   })
 
   it('accepts optional apiKey and baseUrl', () => {
-    const result = ConfigSchema.parse({ apiKey: 'sk-123', baseUrl: 'http://localhost:11434' })
+    const result = ConfigSchema.parse({
+      apiKey: 'sk-123',
+      baseUrl: 'http://localhost:11434',
+    })
     expect(result.apiKey).toBe('sk-123')
     expect(result.baseUrl).toBe('http://localhost:11434')
   })
@@ -47,7 +55,7 @@ describe('ConfigSchema', () => {
 
   it('parses session config', () => {
     const result = ConfigSchema.parse({
-      session: { autoSave: false, saveDir: '/tmp/sessions' }
+      session: { autoSave: false, saveDir: '/tmp/sessions' },
     })
     expect(result.session?.autoSave).toBe(false)
     expect(result.session?.saveDir).toBe('/tmp/sessions')
@@ -55,14 +63,16 @@ describe('ConfigSchema', () => {
 
   it('parses logging config', () => {
     const result = ConfigSchema.parse({
-      logging: { level: 'debug', file: '/tmp/agent.log' }
+      logging: { level: 'debug', file: '/tmp/agent.log' },
     })
     expect(result.logging?.level).toBe('debug')
     expect(result.logging?.file).toBe('/tmp/agent.log')
   })
 
   it('rejects invalid log level', () => {
-    expect(() => ConfigSchema.parse({ logging: { level: 'verbose' } })).toThrow()
+    expect(() =>
+      ConfigSchema.parse({ logging: { level: 'verbose' } })
+    ).toThrow()
   })
 })
 
@@ -84,10 +94,10 @@ describe('mcp config', () => {
           filesystem: {
             type: 'stdio',
             command: 'npx',
-            args: ['@modelcontextprotocol/server-filesystem', '/tmp']
-          }
-        }
-      }
+            args: ['@modelcontextprotocol/server-filesystem', '/tmp'],
+          },
+        },
+      },
     })
     expect(result.success).toBe(true)
     if (result.success) {
@@ -95,7 +105,10 @@ describe('mcp config', () => {
       expect(server?.type).toBe('stdio')
       if (server?.type === 'stdio') {
         expect(server.command).toBe('npx')
-        expect(server.args).toEqual(['@modelcontextprotocol/server-filesystem', '/tmp'])
+        expect(server.args).toEqual([
+          '@modelcontextprotocol/server-filesystem',
+          '/tmp',
+        ])
       }
     }
   })
@@ -104,9 +117,9 @@ describe('mcp config', () => {
     const result = ConfigSchema.safeParse({
       mcp: {
         servers: {
-          remote: { type: 'http', url: 'http://localhost:3000/sse' }
-        }
-      }
+          remote: { type: 'http', url: 'http://localhost:3000/sse' },
+        },
+      },
     })
     expect(result.success).toBe(true)
     if (result.success) {
@@ -120,25 +133,33 @@ describe('mcp config', () => {
 
   it('rejects invalid server type', () => {
     const result = ConfigSchema.safeParse({
-      mcp: { servers: { bad: { type: 'websocket', url: 'ws://localhost' } } }
+      mcp: { servers: { bad: { type: 'websocket', url: 'ws://localhost' } } },
     })
     expect(result.success).toBe(false)
   })
 
   it('accepts expose config with defaults', () => {
     const result = ConfigSchema.safeParse({
-      mcp: { expose: {} }
+      mcp: { expose: {} },
     })
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.data.mcp?.expose?.tools).toEqual(['read', 'glob', 'grep', 'ls'])
+      expect(result.data.mcp?.expose?.tools).toEqual([
+        'read',
+        'glob',
+        'grep',
+        'ls',
+      ])
       expect(result.data.mcp?.expose?.transport).toBe('stdio')
       expect(result.data.mcp?.expose?.port).toBe(3100)
     }
   })
 
   it('mcp field is optional — existing configs still parse', () => {
-    const result = ConfigSchema.safeParse({ model: 'claude-sonnet-4-6', mode: 'yolo' })
+    const result = ConfigSchema.safeParse({
+      model: 'claude-sonnet-4-6',
+      mode: 'yolo',
+    })
     expect(result.success).toBe(true)
     if (result.success) expect(result.data.mcp).toBeUndefined()
   })

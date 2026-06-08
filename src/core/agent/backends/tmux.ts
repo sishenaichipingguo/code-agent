@@ -28,9 +28,11 @@ export class TmuxBackend implements AgentBackend {
       SUBAGENT_MODEL: modelConfig.model,
       SUBAGENT_API_KEY: modelConfig.apiKey ?? '',
       SUBAGENT_BASE_URL: modelConfig.baseUrl ?? '',
-      SUBAGENT_MAX_TOKENS: String(modelConfig.maxTokens ?? config.maxTokens ?? 4096),
+      SUBAGENT_MAX_TOKENS: String(
+        modelConfig.maxTokens ?? config.maxTokens ?? 4096
+      ),
       MEMORY_NAMESPACE: `sub-${config.type}-${Date.now()}`,
-      SUBAGENT_RESULT_FILE: resultFile
+      SUBAGENT_RESULT_FILE: resultFile,
     }
     const envStr = Object.entries(env)
       .map(([k, v]) => `${k}=${this.shellEscape(v)}`)
@@ -39,7 +41,9 @@ export class TmuxBackend implements AgentBackend {
     const cmd = `${envStr} bun run src/core/agent/runner.ts > ${resultFile} 2>&1; echo $? >> ${resultFile}.exit`
     const paneOutput = execSync(
       `tmux new-window -P -F "#{pane_id}" -n "agent-${config.type}" -- bash -c ${this.shellEscape(cmd)}`
-    ).toString().trim()
+    )
+      .toString()
+      .trim()
     this.paneId = paneOutput
 
     return this.waitForResult(resultFile, `${resultFile}.exit`, config.timeout)
@@ -64,10 +68,17 @@ export class TmuxBackend implements AgentBackend {
             const raw = readFileSync(resultFile, 'utf-8').trim()
             const result = JSON.parse(raw)
             this.cleanup()
-            resolve(result.success ? result.result : (result.error ?? 'SubAgent failed'))
+            resolve(
+              result.success
+                ? result.result
+                : (result.error ?? 'SubAgent failed')
+            )
           } catch {
             this.cleanup()
-            resolve(readFileSync(resultFile, 'utf-8').trim() || 'SubAgent completed with no output')
+            resolve(
+              readFileSync(resultFile, 'utf-8').trim() ||
+                'SubAgent completed with no output'
+            )
           }
         } else {
           setTimeout(poll, 500)
@@ -81,7 +92,9 @@ export class TmuxBackend implements AgentBackend {
     if (this.paneId) {
       try {
         execSync(`tmux kill-pane -t ${this.paneId}`)
-      } catch { /* pane may already be gone */ }
+      } catch {
+        /* pane may already be gone */
+      }
       this.paneId = null
     }
     this.cleanup()
@@ -89,7 +102,11 @@ export class TmuxBackend implements AgentBackend {
 
   private cleanup() {
     if (this.tmpDir && existsSync(this.tmpDir)) {
-      try { rmSync(this.tmpDir, { recursive: true }) } catch { /* ignore */ }
+      try {
+        rmSync(this.tmpDir, { recursive: true })
+      } catch {
+        /* ignore */
+      }
       this.tmpDir = null
     }
   }

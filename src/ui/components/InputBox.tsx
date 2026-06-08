@@ -10,7 +10,12 @@ interface InputBoxProps {
   onRequestCompletions?: (text: string, cursor: number) => void
 }
 
-export function InputBox({ onSubmit, disabled, completions = [], onRequestCompletions }: InputBoxProps) {
+export function InputBox({
+  onSubmit,
+  disabled,
+  completions = [],
+  onRequestCompletions,
+}: InputBoxProps) {
   const [value, setValue] = useState('')
   const [selectedCompletion, setSelectedCompletion] = useState(0)
   const [showCompletions, setShowCompletions] = useState(false)
@@ -22,7 +27,9 @@ export function InputBox({ onSubmit, disabled, completions = [], onRequestComple
         return
       }
       if (key.downArrow) {
-        setSelectedCompletion(prev => Math.min(completions.length - 1, prev + 1))
+        setSelectedCompletion(prev =>
+          Math.min(completions.length - 1, prev + 1)
+        )
         return
       }
       if (key.return) {
@@ -56,7 +63,9 @@ export function InputBox({ onSubmit, disabled, completions = [], onRequestComple
       {showCompletions && completions.length > 0 && (
         <Box flexDirection="column" paddingX={1} paddingBottom={1}>
           <Box paddingBottom={1}>
-            <Text dimColor>Suggestions (↑↓ to select, ⏎ to apply, esc to cancel):</Text>
+            <Text dimColor>
+              Suggestions (↑↓ to select, ⏎ to apply, esc to cancel):
+            </Text>
           </Box>
           {completions.slice(0, 5).map((c, i) => (
             <Box key={i} paddingLeft={1}>
@@ -64,15 +73,15 @@ export function InputBox({ onSubmit, disabled, completions = [], onRequestComple
                 {i === selectedCompletion ? '▸ ' : '  '}
                 {c.display}
               </Text>
-              {c.description && (
-                <Text dimColor> · {c.description}</Text>
-              )}
+              {c.description && <Text dimColor> · {c.description}</Text>}
             </Box>
           ))}
         </Box>
       )}
       <Box paddingX={0} paddingY={0}>
-        <Text color="cyan" bold>❯ </Text>
+        <Text color="cyan" bold>
+          ❯{' '}
+        </Text>
         <TextInput
           value={value}
           onChange={setValue}

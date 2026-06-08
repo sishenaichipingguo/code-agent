@@ -1,6 +1,8 @@
 import type { CommandContext, CommandResult } from '../types'
 
-export function makePluginsHandler(pluginManager: { getLoaded(): Array<{ name: string; version: string }> }) {
+export function makePluginsHandler(pluginManager: {
+  getLoaded(): Array<{ name: string; version: string }>
+}) {
   return async (_ctx: CommandContext): Promise<CommandResult> => {
     const plugins = pluginManager.getLoaded()
     if (plugins.length === 0) {

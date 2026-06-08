@@ -1,10 +1,18 @@
-import type { UnifiedRequest, UnifiedResponse, StreamChunk, ModelCapabilities } from './types'
+import type {
+  UnifiedRequest,
+  UnifiedResponse,
+  StreamChunk,
+  ModelCapabilities,
+} from './types'
 
 export interface ModelAdapter {
   name: string
   capabilities: ModelCapabilities
   chat(request: UnifiedRequest, toolRegistry: any): Promise<UnifiedResponse>
-  chatStream?(request: UnifiedRequest, toolRegistry: any): AsyncGenerator<StreamChunk>
+  chatStream?(
+    request: UnifiedRequest,
+    toolRegistry: any
+  ): AsyncGenerator<StreamChunk>
 }
 
 // Legacy exports for compatibility

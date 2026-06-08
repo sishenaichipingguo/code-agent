@@ -1,6 +1,10 @@
 import { readdir } from 'fs/promises'
 import { join, dirname, basename } from 'path'
-import type { CompletionProvider, CompletionContext, Completion } from '../engine'
+import type {
+  CompletionProvider,
+  CompletionContext,
+  Completion,
+} from '../engine'
 
 export class FilePathCompletionProvider implements CompletionProvider {
   async getCompletions(context: CompletionContext): Promise<Completion[]> {
@@ -20,7 +24,7 @@ export class FilePathCompletionProvider implements CompletionProvider {
           display: f.name,
           description: f.isDirectory() ? 'directory' : 'file',
           type: 'file' as const,
-          score: this.calculateScore(f.name, base)
+          score: this.calculateScore(f.name, base),
         }))
     } catch {
       return []

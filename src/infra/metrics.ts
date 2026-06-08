@@ -35,7 +35,9 @@ export class PerformanceMetrics {
       const min = Math.min(...durations)
       const max = Math.max(...durations)
 
-      console.log(`  ${name}: ${avg.toFixed(0)}ms (min: ${min.toFixed(0)}ms, max: ${max.toFixed(0)}ms, count: ${durations.length})`)
+      console.log(
+        `  ${name}: ${avg.toFixed(0)}ms (min: ${min.toFixed(0)}ms, max: ${max.toFixed(0)}ms, count: ${durations.length})`
+      )
     }
   }
 }
