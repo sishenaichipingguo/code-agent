@@ -1,5 +1,9 @@
 import { spawn } from 'child_process'
 import { createTool } from './registry'
+import { truncateOutput } from './output-limit'
+
+// Directories that produce huge, useless grep output and should never be searched.
+const EXCLUDED_DIRS = ['node_modules', '.git', 'dist', 'build']
 
 export const GrepTool = createTool({
   name: 'grep',
@@ -24,9 +28,12 @@ export const GrepTool = createTool({
   async execute(input: { pattern: string; path?: string }): Promise<string> {
     return new Promise((resolve, reject) => {
       const searchPath = input.path || '.'
-      const proc = spawn('grep', ['-r', '-n', input.pattern, searchPath], {
-        cwd: process.cwd(),
-      })
+      const excludeArgs = EXCLUDED_DIRS.map(d => `--exclude-dir=${d}`)
+      const proc = spawn(
+        'grep',
+        ['-r', '-n', ...excludeArgs, input.pattern, searchPath],
+        { cwd: process.cwd() }
+      )
 
       let stdout = ''
       let stderr = ''
@@ -41,13 +48,14 @@ export const GrepTool = createTool({
 
       proc.on('close', code => {
         if (code === 0) {
-          resolve(stdout || 'No matches found')
+          resolve(truncateOutput(stdout) || 'No matches found')
         } else if (code === 1) {
           resolve('No matches found')
         } else {
           reject(new Error(`Grep failed: ${stderr}`))
         }
       })
+      proc.on('error', err => reject(err))
     })
   },
 })
