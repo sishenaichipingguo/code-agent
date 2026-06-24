@@ -14,6 +14,10 @@ export const CpTool = createTool({
     required: ['source', 'destination'],
   },
   checkPermissions: () => ({ type: 'allow' as const }),
+  affectedPaths: (input: unknown) => {
+    const inp = input as { destination?: string }
+    return typeof inp.destination === 'string' ? [inp.destination] : []
+  },
   async execute(input: {
     source: string
     destination: string

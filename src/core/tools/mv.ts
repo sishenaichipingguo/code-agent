@@ -24,6 +24,12 @@ export const MvTool = createTool({
     if (typeof inp.source !== 'string') return null
     return { kind: 'path-glob' as const, glob: inp.source }
   },
+  affectedPaths: (input: unknown) => {
+    const inp = input as { source?: string; destination?: string }
+    return [inp.source, inp.destination].filter(
+      (p): p is string => typeof p === 'string'
+    )
+  },
   async execute(input: {
     source: string
     destination: string

@@ -26,6 +26,8 @@ export interface Tool extends PermissionCapable {
   description: string
   inputSchema: any
   execute(input: any): Promise<any>
+  /** Filesystem paths this tool may modify, used to snapshot before mutation. */
+  affectedPaths?(input: unknown): string[]
 }
 
 /** Factory that fills in safe defaults for permission methods. */
@@ -42,6 +44,7 @@ export function createTool(spec: {
     ctx: PermissionContext
   ) => PermissionResult
   preparePermissionMatcher?: (input: unknown) => PermissionMatcher | null
+  affectedPaths?: (input: unknown) => string[]
 }): Tool {
   return {
     name: spec.name,
@@ -55,6 +58,7 @@ export function createTool(spec: {
       spec.checkPermissions ??
       (() => ({ type: 'ask', description: `Allow ${spec.name}?` })),
     preparePermissionMatcher: spec.preparePermissionMatcher ?? (() => null),
+    affectedPaths: spec.affectedPaths ?? (() => []),
   }
 }
 
@@ -131,6 +135,13 @@ export class ToolRegistry {
         hookEnv
       )
       effectiveInput = transformed.input
+    }
+
+    // Snapshot any files this tool may modify so the change can be undone.
+    const paths = tool.affectedPaths?.(effectiveInput) ?? []
+    if (paths.length > 0) {
+      const { getCheckpointManager } = await import('@/core/checkpoint/manager')
+      await getCheckpointManager().snapshot(name, paths)
     }
 
     try {

@@ -6,6 +6,7 @@ import { PluginManager } from '@/core/plugins/manager'
 import { compactHandler } from '@/core/slash/builtins/compact'
 import { costHandler } from '@/core/slash/builtins/cost'
 import { clearHandler } from '@/core/slash/builtins/clear'
+import { undoHandler } from '@/core/slash/builtins/undo'
 import { modelHandler } from '@/core/slash/builtins/model'
 import { sessionHandler } from '@/core/slash/builtins/session'
 import { memoryHandler } from '@/core/slash/builtins/memory'
@@ -306,6 +307,15 @@ export async function runYolo(args: Args) {
       description: 'Clear conversation history',
       args: 'none',
       handler: clearHandler,
+    },
+    -1
+  )
+  registry.register(
+    {
+      name: 'undo',
+      description: 'Revert the last file change made by a tool',
+      args: 'none',
+      handler: undoHandler,
     },
     -1
   )

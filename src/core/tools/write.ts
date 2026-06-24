@@ -33,6 +33,10 @@ export const WriteTool = createTool({
     if (typeof inp.path !== 'string') return null
     return { kind: 'path-glob' as const, glob: inp.path }
   },
+  affectedPaths: (input: unknown) => {
+    const inp = input as { path?: string }
+    return typeof inp.path === 'string' ? [inp.path] : []
+  },
   async execute(input: { path: string; content: string }): Promise<string> {
     try {
       await mkdir(dirname(input.path), { recursive: true })
