@@ -8,6 +8,19 @@ import type {
 import { decide } from '@/core/permissions'
 import type { HookManager } from '@/core/hooks/manager'
 
+// Serialize interactive permission prompts: concurrent tool execution
+// (Promise.all of concurrency-safe tools) must not open multiple readline
+// interfaces racing over the same stdin.
+let promptQueue: Promise<unknown> = Promise.resolve()
+function runExclusively<T>(fn: () => Promise<T>): Promise<T> {
+  const result = promptQueue.then(fn, fn)
+  promptQueue = result.then(
+    () => undefined,
+    () => undefined
+  )
+  return result
+}
+
 export interface Tool extends PermissionCapable {
   name: string
   description: string
@@ -159,19 +172,21 @@ export class ToolRegistry {
   private async promptUser(
     toolName: string,
     description: string,
-    input: any
+    _input: any
   ): Promise<boolean> {
-    process.stderr.write(`\n⚠️  Permission required: ${toolName}\n`)
-    process.stderr.write(`   ${description}\n`)
-    const readline = await import('readline')
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stderr,
-    })
-    return new Promise(resolve => {
-      rl.question('Allow? (y/n) ', answer => {
-        rl.close()
-        resolve(answer.trim().toLowerCase() === 'y')
+    return runExclusively(async () => {
+      process.stderr.write(`\n⚠️  Permission required: ${toolName}\n`)
+      process.stderr.write(`   ${description}\n`)
+      const readline = await import('readline')
+      const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stderr,
+      })
+      return new Promise<boolean>(resolve => {
+        rl.question('Allow? (y/n) ', answer => {
+          rl.close()
+          resolve(answer.trim().toLowerCase() === 'y')
+        })
       })
     })
   }

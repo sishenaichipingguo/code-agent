@@ -1,7 +1,13 @@
 // src/core/tools/bash.ts
 import { spawn } from 'child_process'
+import { openSync } from 'fs'
+import { tmpdir } from 'os'
+import { join } from 'path'
 import { createTool } from './registry'
 import type { PermissionContext } from '@/core/permissions'
+
+// Grace period between SIGTERM and SIGKILL when a command exceeds its timeout.
+const SIGKILL_GRACE_MS = 2000
 
 // Commands that only read system state — safe to run concurrently
 const READONLY_PREFIXES = [
@@ -41,13 +47,51 @@ const DANGEROUS_PREFIXES = [
   'bun install',
 ]
 
-function classifyCommand(command: string): 'readonly' | 'dangerous' | 'normal' {
-  const cmd = command.trimStart()
-  if (READONLY_PREFIXES.some(p => cmd === p.trim() || cmd.startsWith(p)))
-    return 'readonly'
+// Constructs that embed or redirect commands — a readonly-looking outer command
+// can still cause side effects through these, so they never get the readonly fast-path.
+const SUBSTITUTION_PATTERN = /\$\(|`|<\(/
+const REDIRECT_PATTERN = /[<>]/
+
+// Split a command line into atomic command segments, also extracting the bodies
+// of command substitutions so a dangerous command hidden inside `$(...)`/`...`/<(...) is seen.
+function extractSegments(command: string): string[] {
+  const normalized = command
+    .replace(/\$\(/g, ';')
+    .replace(/<\(/g, ';')
+    .replace(/[`)]/g, ';')
+  return normalized
+    .split(/\|\||&&|;|\||\n|&|>|</)
+    .map(s => s.trim())
+    .filter(Boolean)
+}
+
+function classifyAtomic(segment: string): 'readonly' | 'dangerous' | 'normal' {
+  const cmd = segment.trimStart()
+  if (!cmd) return 'readonly'
   if (DANGEROUS_PREFIXES.some(p => cmd === p.trim() || cmd.startsWith(p)))
     return 'dangerous'
+  if (READONLY_PREFIXES.some(p => cmd === p.trim() || cmd.startsWith(p)))
+    return 'readonly'
   return 'normal'
+}
+
+export function classifyCommand(
+  command: string
+): 'readonly' | 'dangerous' | 'normal' {
+  const trimmed = command.trimStart()
+  const classes = extractSegments(trimmed).map(classifyAtomic)
+
+  // Any dangerous segment (including ones hidden in substitutions) dominates.
+  if (classes.includes('dangerous')) return 'dangerous'
+
+  // Substitution/redirection can hide side effects → never fast-path as readonly.
+  if (SUBSTITUTION_PATTERN.test(trimmed) || REDIRECT_PATTERN.test(trimmed))
+    return 'normal'
+
+  // Only treat as readonly when every segment is independently readonly.
+  return classes.length > 0 && classes.every(c => c === 'readonly')
+    ? 'readonly'
+    : 'normal'
 }
 
 function getPrefix(command: string): string {
@@ -132,11 +176,16 @@ function executeForeground(command: string, timeout: number): Promise<string> {
     let stdout = '',
       stderr = '',
       killed = false
+    let killTimer: ReturnType<typeof setTimeout> | undefined
     const timer = setTimeout(() => {
       killed = true
       proc.kill('SIGTERM')
-      setTimeout(() => proc.kill('SIGKILL'), 50000)
+      killTimer = setTimeout(() => proc.kill('SIGKILL'), SIGKILL_GRACE_MS)
     }, timeout)
+    const clearTimers = () => {
+      clearTimeout(timer)
+      if (killTimer) clearTimeout(killTimer)
+    }
     proc.stdout.on('data', (d: Buffer) => {
       stdout += d.toString()
       if (stdout.length > 1048576)
@@ -149,23 +198,33 @@ function executeForeground(command: string, timeout: number): Promise<string> {
       stderr += d.toString()
     })
     proc.on('close', (code: number | null) => {
-      clearTimeout(timer)
+      clearTimers()
       if (killed) reject(new Error(`Command timed out after ${timeout}ms`))
       else if (code !== 0) reject(new Error(`Exit code ${code}\n${stderr}`))
       else resolve(stdout || stderr || 'Command completed')
     })
-    proc.on('error', reject)
+    proc.on('error', (err: Error) => {
+      clearTimers()
+      reject(err)
+    })
   })
 }
 
 function executeBackground(command: string): Promise<string> {
   const taskId = `bash-${Date.now()}`
+  // Stream output to a log file so the result is actually retrievable later,
+  // instead of being discarded with stdio: 'ignore'.
+  const logPath = join(tmpdir(), `${taskId}.log`)
+  const logFd = openSync(logPath, 'a')
   const proc = spawn('bash', ['-c', command], {
     cwd: process.cwd(),
     env: process.env,
     detached: true,
-    stdio: 'ignore',
+    stdio: ['ignore', logFd, logFd],
   })
   proc.unref()
-  return Promise.resolve(`Background task started: ${taskId}`)
+  return Promise.resolve(
+    `Background task ${taskId} started (pid ${proc.pid}). ` +
+      `Output is streaming to ${logPath} — read it with: cat ${logPath}`
+  )
 }

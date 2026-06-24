@@ -47,6 +47,25 @@ export class AgentError extends Error {
   }
 }
 
+export interface BackoffOptions {
+  baseDelay?: number
+  maxDelay?: number
+  jitter?: boolean
+}
+
+/**
+ * Shared exponential-backoff delay used by every retry path (API calls and
+ * streaming). Caps at maxDelay and applies full jitter when enabled.
+ */
+export function nextBackoffDelay(
+  attempt: number,
+  options: BackoffOptions = {}
+): number {
+  const { baseDelay = 1000, maxDelay = 60000, jitter = true } = options
+  const exponential = Math.min(maxDelay, baseDelay * Math.pow(2, attempt))
+  return jitter ? Math.random() * exponential : exponential
+}
+
 export interface RetryOptions {
   maxRetries?: number
   backoff?: number
@@ -90,7 +109,10 @@ export async function withRetry<T>(
         onRetry(attempt + 1, error)
       }
 
-      const delay = backoff * Math.pow(2, attempt)
+      const delay = nextBackoffDelay(attempt, {
+        baseDelay: backoff,
+        jitter: false,
+      })
       await new Promise(resolve => setTimeout(resolve, delay))
     }
   }

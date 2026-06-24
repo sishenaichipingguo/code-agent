@@ -9,6 +9,7 @@ import type { SessionManager } from '@/core/session/manager'
 import type { PermissionContext } from '@/core/permissions'
 import type { HookManager } from '@/core/hooks/manager'
 import { getMetrics } from '@/infra/metrics'
+import { nextBackoffDelay } from '@/infra/errors'
 
 export interface AgentContext {
   model: ModelAdapter
@@ -65,6 +66,17 @@ export class AgentLoop {
     let finalText = ''
 
     try {
+      // Kick off memory recall first so its latency overlaps with the lifecycle
+      // hooks below instead of adding to startup time.
+      const recallPromise: Promise<string> = this.context.memoryRecallFn
+        ? this.context.memoryRecallFn(userMessage).catch((error: any) => {
+            this.context.logger.warn('Memory recall failed', {
+              error: error.message,
+            })
+            return ''
+          })
+        : Promise.resolve('')
+
       await this.context.hooks?.fire('session-start', hookEnv)
 
       // Trigger user-prompt-submit hook for memory system initialization
@@ -75,21 +87,11 @@ export class AgentLoop {
           this.context.sessionManager?.getCurrentSession()?.id || 'unknown',
       })
 
-      // Recall relevant memories from past sessions
-      let recalledMemories = ''
-      if (this.context.memoryRecallFn) {
-        try {
-          recalledMemories = await this.context.memoryRecallFn(userMessage)
-          if (recalledMemories) {
-            this.context.logger.debug('Recalled memories', {
-              length: recalledMemories.length,
-            })
-          }
-        } catch (error: any) {
-          this.context.logger.warn('Memory recall failed', {
-            error: error.message,
-          })
-        }
+      const recalledMemories = await recallPromise
+      if (recalledMemories) {
+        this.context.logger.debug('Recalled memories', {
+          length: recalledMemories.length,
+        })
       }
 
       // Build dynamic system prompt with recalled memories
@@ -332,24 +334,6 @@ export class AgentLoop {
     return results
   }
 
-  private formatValue(value: any): string {
-    if (typeof value === 'string') {
-      // Truncate long strings
-      if (value.length > 100) {
-        return `"${value.slice(0, 100)}..." (${value.length} chars)`
-      }
-      return `"${value}"`
-    }
-    if (typeof value === 'object' && value !== null) {
-      const str = JSON.stringify(value)
-      if (str.length > 100) {
-        return `${str.slice(0, 100)}... (${str.length} chars)`
-      }
-      return str
-    }
-    return String(value)
-  }
-
   private async runWithStream(
     request: any,
     messages: Message[],
@@ -453,20 +437,14 @@ export class AgentLoop {
     } catch (error: any) {
       const { AgentError } = await import('@/infra/errors')
       const maxRetries = 10
-      const baseDelay = 1000
-      const maxDelay = 60000
 
       if (
         error instanceof AgentError &&
         error.recoverable &&
         attempt < maxRetries
       ) {
-        // Index retreats, everything shakes（Full Jitter）
-        const exponentialDelay = Math.min(
-          maxDelay,
-          baseDelay * Math.pow(2, attempt)
-        )
-        const delay = Math.random() * exponentialDelay
+        // Shared full-jitter exponential backoff (capped at 60s).
+        const delay = nextBackoffDelay(attempt)
 
         this.context.logger.warn(
           `Stream failed, retrying (${attempt + 1}/${maxRetries})`,

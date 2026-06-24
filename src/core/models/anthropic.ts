@@ -8,7 +8,7 @@ import type {
 } from './types'
 import { getTokenTracker } from '@/infra/token-tracker'
 import { getLogger } from '@/infra/logger'
-import { withRetry } from '@/infra/errors'
+import { withRetry, AgentError, ErrorCode } from '@/infra/errors'
 
 interface Config {
   apiKey: string
@@ -43,11 +43,11 @@ export class AnthropicAdapter implements ModelAdapter {
       async (): Promise<UnifiedResponse> => {
         logger.debug('API call started')
 
-        const tools = toolRegistry.toSchema()
+        const tools = this.cacheTools(toolRegistry.toSchema())
         const response = await this.client.messages.create({
           model: this.config.model,
           max_tokens: request.max_tokens || 4096,
-          messages: request.messages as any,
+          messages: this.cacheLastMessage(request.messages as any[]) as any,
           tools,
           system: [
             {
@@ -63,6 +63,9 @@ export class AnthropicAdapter implements ModelAdapter {
         const cacheCreation =
           (response.usage as any).cache_creation_input_tokens ?? 0
         const cacheRead = (response.usage as any).cache_read_input_tokens ?? 0
+        // True context size for compression decisions: input_tokens excludes
+        // cached tokens, which still occupy the context window.
+        const contextTokens = inputTokens + cacheCreation + cacheRead
 
         tracker.track(
           this.config.model,
@@ -87,7 +90,7 @@ export class AnthropicAdapter implements ModelAdapter {
             type: 'tool_use',
             tools: toolCalls,
             rawContent: response.content,
-            inputTokens,
+            inputTokens: contextTokens,
           }
         }
 
@@ -100,7 +103,7 @@ export class AnthropicAdapter implements ModelAdapter {
             type: 'text',
             content: textContent.text,
             rawContent: response.content,
-            inputTokens,
+            inputTokens: contextTokens,
           }
         }
 
@@ -120,8 +123,6 @@ export class AnthropicAdapter implements ModelAdapter {
         },
       }
     ).catch((error: any) => {
-      const { AgentError, ErrorCode } = require('@/infra/errors')
-
       let errorCode = ErrorCode.API_ERROR
       if (error.message?.includes('network')) {
         errorCode = ErrorCode.NETWORK_ERROR
@@ -144,6 +145,44 @@ Current directory: ${process.cwd()}
 Available tools: bash, read, write, edit, glob, grep, ls, cp, mv, rm`
   }
 
+  /** Mark the last tool definition as a cache breakpoint so the (stable) tool
+   * schema is reused across turns instead of being re-billed every request. */
+  private cacheTools(tools: any[]): any[] {
+    if (tools.length === 0) return tools
+    const last = tools[tools.length - 1]
+    return [
+      ...tools.slice(0, -1),
+      { ...last, cache_control: { type: 'ephemeral' } },
+    ]
+  }
+
+  /** Place a cache breakpoint at the end of the conversation. Each turn the
+   * previous breakpoint becomes a cache read, so the growing history is billed
+   * incrementally instead of in full on every request. */
+  private cacheLastMessage(messages: any[]): any[] {
+    if (messages.length === 0) return messages
+    const last = messages[messages.length - 1]
+    let content: any
+    if (typeof last.content === 'string') {
+      content = [
+        {
+          type: 'text',
+          text: last.content,
+          cache_control: { type: 'ephemeral' },
+        },
+      ]
+    } else if (Array.isArray(last.content) && last.content.length > 0) {
+      content = last.content.map((block: any, i: number) =>
+        i === last.content.length - 1
+          ? { ...block, cache_control: { type: 'ephemeral' } }
+          : block
+      )
+    } else {
+      return messages
+    }
+    return [...messages.slice(0, -1), { ...last, content }]
+  }
+
   async *chatStream(
     request: UnifiedRequest,
     toolRegistry: any
@@ -154,11 +193,11 @@ Available tools: bash, read, write, edit, glob, grep, ls, cp, mv, rm`
     try {
       logger.debug('Streaming API call started')
 
-      const tools = toolRegistry.toSchema()
+      const tools = this.cacheTools(toolRegistry.toSchema())
       const stream = await this.client.messages.stream({
         model: this.config.model,
         max_tokens: request.max_tokens || 4096,
-        messages: request.messages as any,
+        messages: this.cacheLastMessage(request.messages as any[]) as any,
         tools,
         system: [
           {
@@ -245,12 +284,14 @@ Available tools: bash, read, write, edit, glob, grep, ls, cp, mv, rm`
             cacheCreation,
             cacheRead,
           })
-          yield { type: 'done', inputTokens }
+          yield {
+            type: 'done',
+            inputTokens: inputTokens + cacheCreation + cacheRead,
+          }
         }
       }
     } catch (error: any) {
       logger.error('Streaming API call failed', { error: error.message })
-      const { AgentError, ErrorCode } = await import('@/infra/errors')
       const httpStatus = error?.status ?? error?.statusCode
       let errorCode = ErrorCode.API_ERROR
       if (httpStatus === 429) errorCode = ErrorCode.RATE_LIMIT
