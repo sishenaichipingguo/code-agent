@@ -1,7 +1,9 @@
 import type { Compressor, CompressorResult, RawMessage } from './types'
 import type { ModelAdapter } from '@/core/models/adapter'
+import { autoHandoffInstruction } from './prompts'
 
 const KEEP_RECENT_ROUNDS = 3
+const SUMMARY_MAX_TOKENS = 1536
 
 export class AutoCompressor implements Compressor {
   async run(
@@ -24,11 +26,10 @@ export class AutoCompressor implements Compressor {
           ...toSummarize,
           {
             role: 'user',
-            content:
-              'Summarize the above conversation concisely. Preserve: key decisions made, files created or modified, errors encountered and resolved, and context needed to continue the current task.',
+            content: autoHandoffInstruction(),
           },
         ] as any,
-        max_tokens: 1024,
+        max_tokens: SUMMARY_MAX_TOKENS,
         stream: false,
       },
       { toSchema: () => [] }

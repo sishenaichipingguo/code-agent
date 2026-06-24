@@ -1,5 +1,6 @@
 import type { Compressor, CompressorResult, RawMessage } from './types'
 import type { ModelAdapter } from '@/core/models/adapter'
+import { manualHandoffInstruction } from './prompts'
 
 export class ManualCompactor implements Compressor {
   async run(
@@ -18,15 +19,7 @@ export class ManualCompactor implements Compressor {
           ...messages,
           {
             role: 'user',
-            content: [
-              'Create a structured context summary with these sections:',
-              '- Files created or modified (list with brief description of change)',
-              '- Decisions made (design choices, approach selected)',
-              '- Errors encountered and how they were resolved',
-              '- Current task / what was being worked on when this was triggered',
-              '- Any open questions or blockers',
-              'Be thorough — this summary will replace the entire conversation history.',
-            ].join('\n'),
+            content: manualHandoffInstruction(),
           },
         ] as any,
         max_tokens: 2048,
