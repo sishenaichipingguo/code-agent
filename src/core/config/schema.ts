@@ -75,6 +75,17 @@ export const ConfigSchema = z.object({
     })
     .optional(),
 
+  sandbox: z
+    .object({
+      enabled: z.boolean().default(true),
+      backend: z
+        .enum(['auto', 'seatbelt', 'bubblewrap', 'restricted', 'none'])
+        .default('auto'),
+      network: z.enum(['deny', 'allow']).default('deny'),
+      writeRoots: z.array(z.string()).default([]),
+    })
+    .optional(),
+
   hooks: z
     .record(
       z.enum([

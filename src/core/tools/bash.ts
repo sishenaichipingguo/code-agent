@@ -5,9 +5,36 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 import { createTool } from './registry'
 import type { PermissionContext } from '@/core/permissions'
+import type { Sandbox, SpawnSpec } from '@/core/sandbox/types'
 
 // Grace period between SIGTERM and SIGKILL when a command exceeds its timeout.
 const SIGKILL_GRACE_MS = 2000
+
+// Sandbox is selected once per process (selection may warn; we don't want to spam).
+let cachedSandbox: Sandbox | undefined
+
+async function buildSpawnSpec(command: string): Promise<SpawnSpec> {
+  let sandboxCfg: any
+  try {
+    const { getConfig } = await import('@/core/config/loader')
+    sandboxCfg = getConfig()?.sandbox
+  } catch {
+    sandboxCfg = undefined
+  }
+
+  if (!cachedSandbox) {
+    const { createSandbox } = await import('@/core/sandbox/factory')
+    cachedSandbox = createSandbox({
+      backend: sandboxCfg?.backend ?? 'auto',
+      enabled: sandboxCfg?.enabled ?? true,
+    })
+  }
+
+  return cachedSandbox.wrap('bash', ['-c', command], {
+    writeRoots: [process.cwd(), ...(sandboxCfg?.writeRoots ?? [])],
+    allowNetwork: (sandboxCfg?.network ?? 'deny') === 'allow',
+  })
+}
 
 // Commands that only read system state — safe to run concurrently
 const READONLY_PREFIXES = [
@@ -162,16 +189,17 @@ export const BashTool = createTool({
     description?: string
   }) {
     const timeout = Math.min(input.timeout ?? 120000, 600000)
-    if (input.run_in_background) return executeBackground(input.command)
-    return executeForeground(input.command, timeout)
+    const spec = await buildSpawnSpec(input.command)
+    if (input.run_in_background) return executeBackground(spec)
+    return executeForeground(spec, timeout)
   },
 })
 
-function executeForeground(command: string, timeout: number): Promise<string> {
+function executeForeground(spec: SpawnSpec, timeout: number): Promise<string> {
   return new Promise((resolve, reject) => {
-    const proc = spawn('bash', ['-c', command], {
+    const proc = spawn(spec.file, spec.args, {
       cwd: process.cwd(),
-      env: process.env,
+      env: spec.env,
     })
     let stdout = '',
       stderr = '',
@@ -210,15 +238,15 @@ function executeForeground(command: string, timeout: number): Promise<string> {
   })
 }
 
-function executeBackground(command: string): Promise<string> {
+function executeBackground(spec: SpawnSpec): Promise<string> {
   const taskId = `bash-${Date.now()}`
   // Stream output to a log file so the result is actually retrievable later,
   // instead of being discarded with stdio: 'ignore'.
   const logPath = join(tmpdir(), `${taskId}.log`)
   const logFd = openSync(logPath, 'a')
-  const proc = spawn('bash', ['-c', command], {
+  const proc = spawn(spec.file, spec.args, {
     cwd: process.cwd(),
-    env: process.env,
+    env: spec.env,
     detached: true,
     stdio: ['ignore', logFd, logFd],
   })
