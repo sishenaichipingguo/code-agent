@@ -17,6 +17,7 @@ import os from 'os'
 import { join } from 'path'
 import { initTokenTracker, getTokenTracker } from '@/infra/token-tracker'
 import { initMetrics, getMetrics } from '@/infra/metrics'
+import { appendUsageLog } from '@/infra/usage-sink'
 import { GracefulShutdown } from '@/infra/graceful-shutdown'
 import { loadConfig } from '@/core/config/loader'
 import { AgentLoop } from '@/core/agent/loop'
@@ -50,6 +51,24 @@ export async function runYolo(args: Args) {
   const sessionManager = new SessionManager()
 
   logger.info('Starting in YOLO mode')
+
+  // Persist token/perf usage to .agent/logs/usage.jsonl. Failures here must not
+  // crash shutdown, so they are logged, not thrown.
+  const persistUsage = async () => {
+    try {
+      await appendUsageLog({
+        logFile: config.logging!.file,
+        mode: 'yolo',
+        model: args.model || config.model,
+        tracker,
+        metrics,
+      })
+    } catch (error: unknown) {
+      logger.warn('Failed to persist usage log', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
 
   // Start Worker Service if memory is enabled
   let workerManager: WorkerManager | undefined
@@ -109,6 +128,7 @@ export async function runYolo(args: Args) {
   shutdown.onShutdown(async () => {
     tracker.printSummary()
     metrics.printSummary()
+    await persistUsage()
   })
 
   const tools = await createToolRegistry()
@@ -415,6 +435,7 @@ export async function runYolo(args: Args) {
 
   tracker.printSummary()
   metrics.printSummary()
+  await persistUsage()
 }
 
 async function promptUser(): Promise<string> {

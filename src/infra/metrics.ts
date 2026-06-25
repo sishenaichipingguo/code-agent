@@ -1,3 +1,11 @@
+export interface MetricSummary {
+  name: string
+  avgMs: number
+  minMs: number
+  maxMs: number
+  count: number
+}
+
 export class PerformanceMetrics {
   private metrics = new Map<string, number[]>()
 
@@ -25,18 +33,33 @@ export class PerformanceMetrics {
     this.metrics.get(name)!.push(duration)
   }
 
+  // Immutable view of collected timings, reused by printSummary and by the
+  // usage log sink so both render the same numbers.
+  snapshot(): MetricSummary[] {
+    const summaries: MetricSummary[] = []
+    for (const [name, durations] of this.metrics) {
+      if (durations.length === 0) continue
+      const sum = durations.reduce((a, b) => a + b, 0)
+      summaries.push({
+        name,
+        avgMs: sum / durations.length,
+        minMs: Math.min(...durations),
+        maxMs: Math.max(...durations),
+        count: durations.length,
+      })
+    }
+    return summaries
+  }
+
   printSummary() {
-    if (this.metrics.size === 0) return
+    const summaries = this.snapshot()
+    if (summaries.length === 0) return
 
     console.log('\n⚡ Performance:')
 
-    for (const [name, durations] of this.metrics) {
-      const avg = durations.reduce((a, b) => a + b, 0) / durations.length
-      const min = Math.min(...durations)
-      const max = Math.max(...durations)
-
+    for (const s of summaries) {
       console.log(
-        `  ${name}: ${avg.toFixed(0)}ms (min: ${min.toFixed(0)}ms, max: ${max.toFixed(0)}ms, count: ${durations.length})`
+        `  ${s.name}: ${s.avgMs.toFixed(0)}ms (min: ${s.minMs.toFixed(0)}ms, max: ${s.maxMs.toFixed(0)}ms, count: ${s.count})`
       )
     }
   }

@@ -2,6 +2,7 @@ import type { Args } from './parser'
 import { initLogger } from '@/infra/logger'
 import { initTokenTracker } from '@/infra/token-tracker'
 import { initMetrics } from '@/infra/metrics'
+import { appendUsageLog } from '@/infra/usage-sink'
 import { GracefulShutdown } from '@/infra/graceful-shutdown'
 import { loadConfig } from '@/core/config/loader'
 import { AgentLoop } from '@/core/agent/loop'
@@ -24,6 +25,24 @@ export async function runSafe(args: Args) {
 
   logger.info('Starting in Safe mode')
 
+  // Persist token/perf usage to .agent/logs/usage.jsonl. Failures here must not
+  // crash shutdown, so they are logged, not thrown.
+  const persistUsage = async () => {
+    try {
+      await appendUsageLog({
+        logFile: config.logging!.file,
+        mode: 'safe',
+        model: args.model || config.model,
+        tracker,
+        metrics,
+      })
+    } catch (error: unknown) {
+      logger.warn('Failed to persist usage log', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
   // Setup graceful shutdown
   shutdown.onShutdown(async () => {
     process.stderr.write('💾 Saving session...\n')
@@ -38,6 +57,7 @@ export async function runSafe(args: Args) {
   shutdown.onShutdown(async () => {
     tracker.printSummary()
     metrics.printSummary()
+    await persistUsage()
   })
 
   // Initialize components
@@ -82,6 +102,7 @@ export async function runSafe(args: Args) {
   // Print summaries
   tracker.printSummary()
   metrics.printSummary()
+  await persistUsage()
 }
 
 async function promptUser(): Promise<string> {
