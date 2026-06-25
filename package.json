@@ -20,6 +20,7 @@
     "test": "bun test src/ tests/agent-backends.test.ts tests/agent-initializer.test.ts tests/mode.test.ts tests/parser.test.ts tests/slash-integration.test.ts",
     "test:unit": "bun test src/ tests/agent-backends.test.ts tests/agent-initializer.test.ts tests/mode.test.ts tests/parser.test.ts tests/slash-integration.test.ts",
     "test:e2e": "bun test --timeout 180000 tests/e2e/",
+    "eval": "bun run evals/runner.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
