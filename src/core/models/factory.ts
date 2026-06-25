@@ -2,6 +2,7 @@ import type { ModelAdapter } from './adapter'
 import type { ProviderConfig } from './types'
 import { AnthropicAdapter } from './anthropic'
 import { OllamaAdapter } from './ollama'
+import { OpenAICompatibleAdapter } from './openai-compatible'
 
 export class ModelFactory {
   static create(config: ProviderConfig): ModelAdapter {
@@ -20,8 +21,20 @@ export class ModelFactory {
         })
 
       case 'openai':
-      case 'openai-compatible':
-        throw new Error(`${config.type} not yet implemented`)
+      case 'openai-compatible': {
+        // 'openai' defaults to the official endpoint; 'openai-compatible'
+        // expects an explicit baseUrl (local server / gateway), falling back
+        // to OPENAI_BASE_URL then the official endpoint.
+        const baseUrl =
+          config.baseUrl ||
+          process.env.OPENAI_BASE_URL ||
+          'https://api.openai.com/v1'
+        return new OpenAICompatibleAdapter({
+          apiKey: config.apiKey || process.env.OPENAI_API_KEY || '',
+          model: config.model,
+          baseUrl,
+        })
+      }
 
       default:
         throw new Error(`Unknown provider: ${config.type}`)

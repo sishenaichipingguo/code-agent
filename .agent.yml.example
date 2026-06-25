@@ -5,6 +5,18 @@ provider: anthropic
 model: claude-sonnet-4-6
 # apiKey: sk-ant-xxx  # Optional, uses ANTHROPIC_API_KEY env var
 
+# --- Free / local alternatives ---
+# Ollama (local, no key):
+#   provider: ollama
+#   model: qwen2.5-coder:7b
+#   # baseUrl: http://localhost:11434   # default
+#
+# OpenAI-compatible (LM Studio, llama.cpp, vLLM, OpenRouter, Groq):
+#   provider: openai-compatible
+#   model: <model-name-on-that-server>
+#   baseUrl: http://localhost:1234/v1   # or your gateway URL
+#   # apiKey via OPENAI_API_KEY env (placeholder is fine for keyless servers)
+
 # Execution mode
 mode: yolo  # or 'safe'
 
